@@ -1,0 +1,33 @@
+# === Python ===
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+
+# === Node / Next ===
+node_modules/
+.next/
+out/
+.turbo/
+
+# === Env / Secrets ===
+.env
+.env.local
+*.local
+
+# === DB / 산출물 ===
+*.db
+*.sqlite3
+sample_report.pdf
+
+# === OS / Editor ===
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# === 원본 데이터(민감) ===
+*.xlsx
+!docs/**/*.xlsx

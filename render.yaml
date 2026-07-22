@@ -1,0 +1,27 @@
+# Render Blueprint — 백엔드(FastAPI) 배포 설정.
+# Render 대시보드에서 "New +" → "Blueprint" 로 이 저장소를 연결하면 자동 인식됩니다.
+# DB 는 Supabase(PostgreSQL)를 사용하고, 아래 sync:false 환경변수는 배포 시 직접 입력합니다.
+
+services:
+  - type: web
+    name: menu-intelligence-backend
+    runtime: python
+    rootDir: backend
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      # Supabase 연결 문자열 (Settings → Database → Connection string → URI)
+      #   예: postgresql://postgres:[PW]@db.[REF].supabase.co:5432/postgres
+      - key: DATABASE_URL
+        sync: false
+      # Vercel 프론트엔드 URL (콤마로 여러 개 가능). 프론트 배포 후 입력.
+      #   예: https://menu-intelligence.vercel.app
+      - key: CORS_ORIGINS
+        sync: false
+      # (선택) OpenAI 키. 없으면 규칙 기반 내러티브로 동작.
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: PYTHON_VERSION
+        value: 3.12.7
