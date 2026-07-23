@@ -33,24 +33,43 @@ def _make_xlsx(period: str, rows: list[tuple], total_qty: float, total_sales: fl
 
 
 def test_beltoon_merge_sums_by_code():
-    # 같은 달의 두 분할본(전반/후반). 같은 상품코드 합산.
+    # 같은 달의 두 분할본(전반/후반). 같은 상품코드 합산. (메뉴 분류만 사용)
     a = _make_xlsx("2026-05-01 ~ 2026-05-14",
-                   [("시간제", "A1", "2시간", 100, 500000),
+                   [("식사", "A1", "치킨마요덮밥", 100, 500000),
                     ("음료", "B1", "콜라", 50, 100000)], 150, 600000)
     b = _make_xlsx("2026-05-15 ~ 2026-05-31",
-                   [("시간제", "A1", "2시간", 120, 600000),
+                   [("식사", "A1", "치킨마요덮밥", 120, 600000),
                     ("음료", "B1", "콜라", 30, 60000)], 150, 660000)
     pf = parse_beltoon_files([a, b])
 
     assert pf.output_date == "2026-05-01 ~ 2026-05-31"
-    # 상품 2개(옵션행 제외), 합산됨
-    assert len(pf.products) == 2
-    two = next(p for p in pf.products if p.name == "2시간")
-    assert two.qty == 220        # 100 + 120
-    assert two.sales == 1100000  # 500000 + 600000
-    assert two.unit_price == 5000  # 1,100,000 / 220
-    total = sum(p.sales for p in pf.products)
-    assert total == 1260000
-    # 분류(대분류) 집계
-    assert {c.name for c in pf.categories} == {"시간제", "음료"}
-    assert next(c for c in pf.categories if c.name == "시간제").sales == 1100000
+    assert len(pf.products) == 2  # 옵션행 제외, 합산
+    two = next(p for p in pf.products if p.name == "치킨마요덮밥")
+    assert two.qty == 220
+    assert two.sales == 1100000
+    assert two.unit_price == 5000
+    assert sum(p.sales for p in pf.products) == 1260000
+    assert {c.name for c in pf.categories} == {"식사", "음료"}
+
+
+def test_beltoon_excludes_non_menu_categories():
+    """시간제·요금·진동벨 등 비메뉴 분류는 제외되고 별도 집계된다."""
+    a = _make_xlsx("2026-05-01 ~ 2026-05-31",
+                   [("시간제", "T1", "2시간", 1000, 5000000),      # 제외
+                    ("성인시간제", "T2", "성인2시간", 100, 800000),  # 제외
+                    ("진동벨", "P1", "진동벨1", 50, 10000),          # 제외
+                    ("식사", "F1", "제육덮밥", 200, 1400000),        # 유지
+                    ("음료", "D1", "콜라", 100, 200000)], 1450, 7410000)  # 유지
+    pf = parse_beltoon_files([a])
+
+    names = {p.name for p in pf.products}
+    assert names == {"제육덮밥", "콜라"}                 # 메뉴만
+    assert sum(p.sales for p in pf.products) == 1600000   # 1,400,000 + 200,000
+    assert pf.excluded_sales == 5810000                   # 시간제+성인+진동벨
+    assert pf.excluded_category_count == 3
+    assert "시간제" in pf.excluded_category_names
+
+    # menu_only=False 면 전체 유지
+    pf_all = parse_beltoon_files([a], menu_only=False)
+    assert len(pf_all.products) == 5
+    assert pf_all.excluded_sales == 0

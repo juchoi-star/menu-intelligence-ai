@@ -95,6 +95,7 @@ class PCAnalysisMeta(BaseModel):
     output_date_curr: str | None = None
     product_count: int = 0
     generated_at: datetime
+    excluded_note: str | None = None   # 분석 제외 항목 안내(벌툰: 시간제 등 비메뉴)
 
 
 class PCAnalysisResult(BaseModel):

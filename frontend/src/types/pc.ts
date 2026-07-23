@@ -84,6 +84,7 @@ export interface PCAnalysisMeta {
   output_date_curr: string | null;
   product_count: number;
   generated_at: string;
+  excluded_note: string | null;
 }
 
 export interface PCAnalysisResult {

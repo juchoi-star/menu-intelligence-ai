@@ -20,6 +20,7 @@ from dataclasses import dataclass
 
 from openpyxl import load_workbook
 
+from app.core.beltoon_categories import is_menu_category
 from app.core.pc_parser import PCCategory, PCParsedFile, PCProduct
 
 warnings.filterwarnings("ignore", category=UserWarning, module="openpyxl")
@@ -119,10 +120,14 @@ def _parse_one(source) -> tuple[list[_RawProduct], tuple[str | None, str | None]
         wb.close()
 
 
-def parse_beltoon_files(sources: list) -> PCParsedFile:
+def parse_beltoon_files(sources: list, menu_only: bool = True) -> PCParsedFile:
     """여러 벌툰 파일(같은 달의 분할본)을 합쳐 하나의 :class:`PCParsedFile` 로 반환.
 
     상품코드 기준으로 판매수·결제합계를 합산한다. 단가는 결제합계/판매수(평균)로 산출.
+
+    Args:
+        menu_only: True 면 시간제·이용권 등 비메뉴 분류를 제외하고 메뉴/음료만 분석한다.
+                   제외된 항목의 매출/개수/분류수는 결과에 별도로 기록한다.
     """
     if not sources:
         raise BeltoonParserError("파일이 없습니다.")
@@ -142,26 +147,37 @@ def parse_beltoon_files(sources: list) -> PCParsedFile:
             acc[2] += rp.qty
             acc[3] += rp.sales
 
-    products = [
-        PCProduct(
-            name=v[0],
-            unit_price=(v[3] / v[2]) if v[2] else 0.0,
-            qty=v[2],
-            sales=v[3],
-        )
-        for v in merged.values()
-    ]
+    # 메뉴/비메뉴 분리
+    excl_sales = excl_qty = 0.0
+    excl_cats: set[str] = set()
 
-    # 분류(대분류) 집계
-    cat: dict[str, list[float]] = {}
-    for v in merged.values():
-        c = cat.setdefault(v[1], [0.0, 0.0])
-        c[0] += v[2]
-        c[1] += v[3]
+    products: list[PCProduct] = []
+    cat: dict[str, list[float]] = {}  # 메뉴 분류 집계
+    for name, category, qty, sales in merged.values():
+        if menu_only and not is_menu_category(category):
+            excl_sales += sales
+            excl_qty += qty
+            excl_cats.add(category)
+            continue
+        products.append(
+            PCProduct(name=name, unit_price=(sales / qty) if qty else 0.0, qty=qty, sales=sales)
+        )
+        c = cat.setdefault(category, [0.0, 0.0])
+        c[0] += qty
+        c[1] += sales
+
     categories = [PCCategory(name=n, qty=q, sales=s) for n, (q, s) in cat.items()]
 
     period = None
     if starts and ends:
         period = f"{min(starts)} ~ {max(ends)}"
 
-    return PCParsedFile(products=products, categories=categories, output_date=period)
+    return PCParsedFile(
+        products=products,
+        categories=categories,
+        output_date=period,
+        excluded_sales=excl_sales,
+        excluded_qty=excl_qty,
+        excluded_category_count=len(excl_cats),
+        excluded_category_names=sorted(excl_cats),
+    )

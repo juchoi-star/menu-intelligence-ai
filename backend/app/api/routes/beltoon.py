@@ -61,6 +61,14 @@ async def compare(
         raise HTTPException(422, f"파싱 실패: {exc}") from exc
 
     result = analyze_pc(prev, curr, prev_label=prev_label, curr_label=curr_label)
+
+    # 시간제·이용권 등 비메뉴 제외 안내(당월 기준)
+    if curr.excluded_category_count:
+        result.meta.excluded_note = (
+            f"시간제·이용권 등 비메뉴 {curr.excluded_category_count}개 분류는 분석에서 제외됨 "
+            f"(당월 {curr.excluded_sales:,.0f}원 · {curr.excluded_qty:,.0f}건). 메뉴·음료만 집계."
+        )
+
     result.ai = generate_pc_ai_report(
         result, api_key=settings.openai_api_key, model=settings.openai_model
     )

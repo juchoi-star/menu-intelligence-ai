@@ -39,6 +39,11 @@ class PCParsedFile:
     products: list[PCProduct] = field(default_factory=list)
     categories: list[PCCategory] = field(default_factory=list)
     output_date: str | None = None
+    # 분석에서 제외된 비메뉴(시간제·이용권 등) 요약 — 벌툰에서만 사용, PC는 기본값(0).
+    excluded_sales: float = 0.0
+    excluded_qty: float = 0.0
+    excluded_category_count: int = 0
+    excluded_category_names: list[str] = field(default_factory=list)
 
 
 class PCParserError(ValueError):
