@@ -9,9 +9,38 @@ from __future__ import annotations
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.db.models import Analysis, PCAnalysis
+from app.core.text import build_alias_map
+from app.db.models import Analysis, AliasSet, PCAnalysis
 from app.models.pc_schemas import PCAnalysisResult
 from app.models.schemas import AnalysisResult
+
+VALID_BRANDS = ("sjp", "pc", "beltoon")
+
+
+def get_alias_groups(db: Session, brand: str) -> list[dict]:
+    """브랜드 별칭 그룹 목록 반환(없으면 빈 리스트)."""
+    entity = db.get(AliasSet, brand)
+    return list(entity.groups) if entity and entity.groups else []
+
+
+def save_alias_groups(db: Session, brand: str, groups: list[dict]) -> list[dict]:
+    """브랜드 별칭 그룹 저장(업서트)."""
+    import datetime as _dt
+
+    entity = db.get(AliasSet, brand)
+    if entity is None:
+        entity = AliasSet(brand=brand, groups=groups)
+        db.add(entity)
+    else:
+        entity.groups = groups
+        entity.updated_at = _dt.datetime.now(_dt.timezone.utc)
+    db.commit()
+    return groups
+
+
+def load_alias_map(db: Session, brand: str) -> dict[str, str]:
+    """분석에 쓸 {변형이름: 대표명} 매핑 로드."""
+    return build_alias_map(get_alias_groups(db, brand))
 
 
 class AnalysisRepository:

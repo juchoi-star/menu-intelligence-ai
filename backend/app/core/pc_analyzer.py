@@ -10,7 +10,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from app.core.pc_parser import PCParsedFile
-from app.core.text import normalize_name
+from app.core.text import canonical_key, display_name, normalize_name
 from app.models.pc_schemas import (
     PCAIReport,
     PCAnalysisMeta,
@@ -54,20 +54,21 @@ def _rank_by_sales(products: dict[str, dict]) -> dict[str, int]:
     return {k: i + 1 for i, (k, _) in enumerate(ordered)}
 
 
-def _as_map(pf: PCParsedFile) -> dict[str, dict]:
-    """정규화이름(키) -> {name(대표), price(평균), qty, sales}. 띄어쓰기 변형 동일상품 합산."""
+def _as_map(pf: PCParsedFile, alias_map: dict[str, str] | None = None) -> dict[str, dict]:
+    """정규화이름(+별칭, 키) -> {name(대표), price(평균), qty, sales}. 변형 동일상품 합산."""
     out: dict[str, dict] = {}
     name_sales: dict[str, dict[str, float]] = {}
     for p in pf.products:
-        key = normalize_name(p.name) or p.name
+        key = canonical_key(p.name, alias_map) or p.name
         e = out.setdefault(key, {"name": p.name, "price": 0.0, "qty": 0.0, "sales": 0.0})
         e["qty"] += p.qty
         e["sales"] += p.sales
         d = name_sales.setdefault(key, {})
         d[p.name] = d.get(p.name, 0.0) + p.sales
     for key, e in out.items():
-        # 대표 표시명 = 변형 중 매출 최대, 단가 = 평균(매출/개수)
-        e["name"] = max(name_sales[key].items(), key=lambda kv: kv[1])[0]
+        # 대표 표시명 = 별칭 대표명 우선, 없으면 변형 중 매출 최대. 단가 = 평균.
+        top = max(name_sales[key].items(), key=lambda kv: kv[1])[0]
+        e["name"] = display_name(top, alias_map)
         e["price"] = (e["sales"] / e["qty"]) if e["qty"] else 0.0
     return out
 
@@ -204,9 +205,10 @@ def analyze_pc(
     curr: PCParsedFile,
     prev_label: str = "전월",
     curr_label: str = "당월",
+    alias_map: dict[str, str] | None = None,
 ) -> PCAnalysisResult:
-    prev_map = _as_map(prev)
-    curr_map = _as_map(curr)
+    prev_map = _as_map(prev, alias_map)
+    curr_map = _as_map(curr, alias_map)
     products = _build_products(prev_map, curr_map)
     insights = _build_insights(products)  # 전체 상품 기준으로 계산
     categories = _build_categories(prev, curr)

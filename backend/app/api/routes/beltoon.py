@@ -10,13 +10,15 @@ from __future__ import annotations
 import logging
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from sqlalchemy.orm import Session
 
 from app.api.deps import get_pc_repository
 from app.config import get_settings
 from app.core.beltoon_parser import BeltoonParserError, parse_beltoon_files
 from app.core.pc_ai import generate_pc_ai_report
 from app.core.pc_analyzer import analyze_pc
-from app.db.repository import PCAnalysisRepository
+from app.db.database import get_db
+from app.db.repository import PCAnalysisRepository, load_alias_map
 from app.models.pc_schemas import PCAnalysisResult, PCUploadResponse
 
 logger = logging.getLogger(__name__)
@@ -46,6 +48,7 @@ async def compare(
     prev_label: str = Form("전월"),
     curr_label: str = Form("당월"),
     repo: PCAnalysisRepository = Depends(get_pc_repository),
+    db: Session = Depends(get_db),
 ) -> PCUploadResponse:
     """전월·당월 각각 여러 파일을 합산해 비교 분석하고 저장/반환한다."""
     settings = get_settings()
@@ -60,7 +63,8 @@ async def compare(
     except BeltoonParserError as exc:
         raise HTTPException(422, f"파싱 실패: {exc}") from exc
 
-    result = analyze_pc(prev, curr, prev_label=prev_label, curr_label=curr_label)
+    result = analyze_pc(prev, curr, prev_label=prev_label, curr_label=curr_label,
+                        alias_map=load_alias_map(db, "beltoon"))
 
     # 시간제·이용권 등 비메뉴 제외 안내(당월 기준)
     if curr.excluded_category_count:

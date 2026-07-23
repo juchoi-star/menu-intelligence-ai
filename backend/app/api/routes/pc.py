@@ -8,13 +8,15 @@ from __future__ import annotations
 import logging
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from sqlalchemy.orm import Session
 
 from app.api.deps import get_pc_repository
 from app.config import get_settings
 from app.core.pc_ai import generate_pc_ai_report
 from app.core.pc_analyzer import analyze_pc
 from app.core.pc_parser import PCParserError, parse_pc_html
-from app.db.repository import PCAnalysisRepository
+from app.db.database import get_db
+from app.db.repository import PCAnalysisRepository, load_alias_map
 from app.models.pc_schemas import PCAnalysisResult, PCUploadResponse
 
 logger = logging.getLogger(__name__)
@@ -42,6 +44,7 @@ async def compare(
     prev_label: str = Form("전월"),
     curr_label: str = Form("당월"),
     repo: PCAnalysisRepository = Depends(get_pc_repository),
+    db: Session = Depends(get_db),
 ) -> PCUploadResponse:
     """두 개의 월별 피씨 POS 파일을 비교 분석하고 저장/반환한다."""
     settings = get_settings()
@@ -50,7 +53,8 @@ async def compare(
     prev = await _read_and_parse(prev_file, max_bytes)
     curr = await _read_and_parse(curr_file, max_bytes)
 
-    result = analyze_pc(prev, curr, prev_label=prev_label, curr_label=curr_label)
+    result = analyze_pc(prev, curr, prev_label=prev_label, curr_label=curr_label,
+                        alias_map=load_alias_map(db, "pc"))
     result.ai = generate_pc_ai_report(
         result, api_key=settings.openai_api_key, model=settings.openai_model
     )

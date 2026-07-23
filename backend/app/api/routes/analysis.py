@@ -9,13 +9,15 @@ import logging
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import Response
+from sqlalchemy.orm import Session
 
 from app.api.deps import get_analysis_repository
 from app.config import get_settings
 from app.core.ai import generate_ai_report
 from app.core.analyzer import analyze
 from app.core.parser import ParsedFile, ParserError, parse_excel
-from app.db.repository import AnalysisRepository
+from app.db.database import get_db
+from app.db.repository import AnalysisRepository, load_alias_map
 from app.models.schemas import AnalysisResult, UploadResponse
 from app.services.report import build_pdf_report
 
@@ -49,6 +51,7 @@ async def compare(
     prev_file: UploadFile = File(..., description="전월 POS 엑셀"),
     curr_file: UploadFile = File(..., description="당월 POS 엑셀"),
     repo: AnalysisRepository = Depends(get_analysis_repository),
+    db: Session = Depends(get_db),
 ) -> UploadResponse:
     """두 개의 월별 POS 파일을 비교 분석하고 결과를 저장/반환한다."""
     settings = get_settings()
@@ -58,7 +61,7 @@ async def compare(
     parsed_b = await _read_and_parse(curr_file, max_bytes)
     prev, curr = _order_by_period(parsed_a, parsed_b)
 
-    result = analyze(prev, curr)
+    result = analyze(prev, curr, alias_map=load_alias_map(db, "sjp"))
     result.ai = generate_ai_report(
         result, api_key=settings.openai_api_key, model=settings.openai_model
     )

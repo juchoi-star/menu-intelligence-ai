@@ -70,3 +70,16 @@ class PCAnalysis(Base):
 
     prev_filename: Mapped[str | None] = mapped_column(Text, nullable=True)
     curr_filename: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class AliasSet(Base):
+    """브랜드별 수동 별칭표(유사/동의어 메뉴 병합 규칙). 팀 공유(단일 레코드/브랜드)."""
+
+    __tablename__ = "alias_sets"
+
+    brand: Mapped[str] = mapped_column(String(32), primary_key=True)  # sjp | pc | beltoon
+    # [{"canonical": "아이스 아메리카노", "members": ["아이스아메리카노","아메리카노(ice)"]}]
+    groups: Mapped[list] = mapped_column(JSON, default=list)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )

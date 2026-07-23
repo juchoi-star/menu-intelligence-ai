@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 
 from app.core.groups import GROUP_ORDER, group_for
 from app.core.parser import MenuRecord, ParsedFile
-from app.core.text import normalize_name
+from app.core.text import canonical_key, display_name
 from app.models.schemas import (
     AnalysisMeta,
     AnalysisResult,
@@ -116,15 +116,17 @@ class _MenuAgg:
         return _safe_div(self.gross_profit, self.real_sales) * 100.0
 
 
-def _aggregate_menus(records: list[MenuRecord]) -> dict[str, _MenuAgg]:
-    """정규화 이름 기준으로 체인 전체 집계(같은 이름·다른 코드도 합침).
+def _aggregate_menus(
+    records: list[MenuRecord], alias_map: dict[str, str] | None = None
+) -> dict[str, _MenuAgg]:
+    """정규화 이름(+별칭표) 기준으로 체인 전체 집계(같은 이름·다른 코드도 합침).
 
     대표 표시명/코드/분류는 매출이 가장 큰 레코드 기준으로 선택한다.
     """
     out: dict[str, _MenuAgg] = {}
     rep: dict[str, tuple] = {}  # key -> (best_sales, name, code, category)
     for rec in records:
-        key = normalize_name(rec.menu_name) or rec.menu_code
+        key = canonical_key(rec.menu_name, alias_map) or rec.menu_code
         agg = out.get(key)
         if agg is None:
             agg = _MenuAgg(
@@ -141,7 +143,7 @@ def _aggregate_menus(records: list[MenuRecord]) -> dict[str, _MenuAgg]:
             rep[key] = (rec.real_sales, rec.menu_name, rec.menu_code, rec.category)
     for key, agg in out.items():
         _, name, code, cat = rep[key]
-        agg.menu_name = name
+        agg.menu_name = display_name(name, alias_map)  # 별칭 대표명 우선
         agg.menu_code = code
         agg.category = cat
         agg.group = group_for(cat)
@@ -571,10 +573,15 @@ def _build_dashboard(
 # ---------------------------------------------------------------------------
 # 공개 API
 # ---------------------------------------------------------------------------
-def analyze(prev: ParsedFile, curr: ParsedFile) -> AnalysisResult:
-    """전월/당월 파싱 결과를 비교 분석해 결과(AI 제외)를 반환한다."""
-    prev_menu = _aggregate_menus(prev.records)
-    curr_menu = _aggregate_menus(curr.records)
+def analyze(
+    prev: ParsedFile, curr: ParsedFile, alias_map: dict[str, str] | None = None
+) -> AnalysisResult:
+    """전월/당월 파싱 결과를 비교 분석해 결과(AI 제외)를 반환한다.
+
+    alias_map: {변형이름: 대표명} 수동 별칭표(선택). 유사/동의어 메뉴를 하나로 취합.
+    """
+    prev_menu = _aggregate_menus(prev.records, alias_map)
+    curr_menu = _aggregate_menus(curr.records, alias_map)
     prev_store = _aggregate_stores(prev.records)
     curr_store = _aggregate_stores(curr.records)
 
