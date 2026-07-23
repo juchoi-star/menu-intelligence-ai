@@ -47,3 +47,26 @@ class Analysis(Base):
     # 원본 파일명(감사/추적용)
     prev_filename: Mapped[str | None] = mapped_column(Text, nullable=True)
     curr_filename: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class PCAnalysis(Base):
+    """피씨(PC방) 비교 분석 저장 레코드(생전포차와 스키마가 달라 별도 테이블)."""
+
+    __tablename__ = "pc_analyses"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
+    prev_label: Mapped[str] = mapped_column(String(32))
+    curr_label: Mapped[str] = mapped_column(String(32))
+    total_sales_curr: Mapped[float] = mapped_column(Float, default=0.0)
+    sales_delta_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
+    product_count: Mapped[int] = mapped_column(Integer, default=0)
+    ai_provider: Mapped[str] = mapped_column(String(32), default="rule-based")
+
+    result_json: Mapped[dict] = mapped_column(JSON)
+
+    prev_filename: Mapped[str | None] = mapped_column(Text, nullable=True)
+    curr_filename: Mapped[str | None] = mapped_column(Text, nullable=True)

@@ -4,13 +4,13 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
-interface NavItem {
+export interface NavItem {
   href: string;
   label: string;
   icon: JSX.Element;
 }
 
-const icon = (path: string) => (
+export const navIcon = (path: string) => (
   <svg
     viewBox="0 0 24 24"
     fill="none"
@@ -24,16 +24,17 @@ const icon = (path: string) => (
   </svg>
 );
 
-const NAV: NavItem[] = [
-  { href: "/", label: "Dashboard", icon: icon("M3 13h8V3H3v10Zm0 8h8v-6H3v6Zm10 0h8V11h-8v10Zm0-18v6h8V3h-8Z") },
-  { href: "/menu", label: "메뉴 분석", icon: icon("M4 6h16M4 12h16M4 18h10") },
-  { href: "/stores", label: "가맹점 분석", icon: icon("M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6") },
-  { href: "/report", label: "AI Report", icon: icon("M9 12h6m-6 4h6M9 8h6M6 3h9l3 3v15H6z") },
-  { href: "/external", label: "외부요인", icon: icon("M12 3a9 9 0 1 0 9 9M12 3v9l6 3M12 3a9 9 0 0 1 9 9") },
-  { href: "/settings", label: "설정", icon: icon("M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-2.7 1.1V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 7 19.4a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0-1.1-2.7H1a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 2.6 7") },
-];
-
-export function Sidebar() {
+export function Sidebar({
+  items,
+  brandName,
+  brandTag,
+  homeHref,
+}: {
+  items: NavItem[];
+  brandName: string;
+  brandTag: string;
+  homeHref: string; // 브랜드 대시보드 루트 (활성 판정 기준)
+}) {
   const pathname = usePathname();
   return (
     <aside className="fixed inset-y-0 left-0 z-30 flex w-60 flex-col border-r border-line bg-ink-900/80 backdrop-blur-xl">
@@ -42,16 +43,16 @@ export function Sidebar() {
           <span className="text-accent text-lg font-bold">M</span>
         </div>
         <div className="leading-tight">
-          <div className="text-sm font-semibold text-white">Menu Intelligence</div>
-          <div className="text-[11px] tracking-wide text-muted">AI Analytics</div>
+          <div className="text-sm font-semibold text-white">{brandName}</div>
+          <div className="text-[11px] tracking-wide text-muted">{brandTag}</div>
         </div>
       </div>
 
       <nav className="flex-1 space-y-1 px-3">
-        {NAV.map((item) => {
+        {items.map((item) => {
           const active =
-            item.href === "/"
-              ? pathname === "/"
+            item.href === homeHref
+              ? pathname === homeHref
               : pathname.startsWith(item.href);
           return (
             <Link
@@ -73,8 +74,14 @@ export function Sidebar() {
         })}
       </nav>
 
-      <div className="px-5 py-5 text-[11px] leading-relaxed text-muted/70">
-        생전포차 체인 · POS 기반<br />메뉴 성장/감소 자동 분석
+      <div className="px-3 pb-5">
+        <Link
+          href="/"
+          className="flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-medium text-muted transition-colors hover:bg-white/[0.04] hover:text-white/90"
+        >
+          {navIcon("M9 5l-7 7 7 7M2 12h20")}
+          브랜드 변경
+        </Link>
       </div>
     </aside>
   );

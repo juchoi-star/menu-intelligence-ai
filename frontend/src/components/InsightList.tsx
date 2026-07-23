@@ -30,7 +30,7 @@ export function InsightList({
         {items.map((it, i) => (
           <Link
             key={`${it.menu_code}-${i}`}
-            href={`/menu/${encodeURIComponent(it.menu_code)}`}
+            href={`/sjp/menu/${encodeURIComponent(it.menu_code)}`}
             className="row-hover flex items-center gap-3 px-5 py-3"
           >
             <span className="w-5 shrink-0 text-center text-xs font-semibold text-muted">

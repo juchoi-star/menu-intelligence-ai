@@ -94,7 +94,7 @@ export function MenuTable({ menus }: { menus: MenuAnalysis[] }) {
             {rows.map((m) => (
               <tr
                 key={m.menu_code}
-                onClick={() => router.push(`/menu/${encodeURIComponent(m.menu_code)}`)}
+                onClick={() => router.push(`/sjp/menu/${encodeURIComponent(m.menu_code)}`)}
                 className="row-hover cursor-pointer border-b border-line/40"
               >
                 <td className="td font-medium">{m.menu_name}</td>

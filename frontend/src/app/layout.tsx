@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { AnalysisProvider } from "@/lib/store";
-import { Sidebar } from "@/components/layout/Sidebar";
+import { PCAnalysisProvider } from "@/lib/pcStore";
 
 export const metadata: Metadata = {
   title: "Menu Intelligence AI",
-  description: "월별 POS 메뉴 매출 자동 비교 분석 BI 플랫폼",
+  description: "월별 POS 매출 자동 비교 분석 BI 플랫폼 (생전포차 · 피씨)",
 };
 
 export default function RootLayout({
@@ -17,8 +17,7 @@ export default function RootLayout({
     <html lang="ko">
       <body>
         <AnalysisProvider>
-          <Sidebar />
-          <main className="ml-60 min-h-screen px-8 pb-16 pt-0">{children}</main>
+          <PCAnalysisProvider>{children}</PCAnalysisProvider>
         </AnalysisProvider>
       </body>
     </html>

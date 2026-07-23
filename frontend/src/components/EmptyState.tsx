@@ -5,10 +5,14 @@ export function EmptyState({
   title = "분석 데이터가 없습니다",
   description = "대시보드에서 월별 POS 파일 2개를 업로드해 분석을 실행하세요.",
   showCta = true,
+  ctaHref = "/",
+  ctaLabel = "홈으로",
 }: {
   title?: string;
   description?: string;
   showCta?: boolean;
+  ctaHref?: string;
+  ctaLabel?: string;
 }) {
   return (
     <Card>
@@ -22,10 +26,10 @@ export function EmptyState({
         <p className="max-w-sm text-sm text-muted">{description}</p>
         {showCta && (
           <Link
-            href="/"
+            href={ctaHref}
             className="mt-2 rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-ink-950 hover:bg-accent-soft"
           >
-            대시보드로 이동
+            {ctaLabel}
           </Link>
         )}
       </div>
