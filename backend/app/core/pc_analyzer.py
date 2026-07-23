@@ -10,6 +10,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from app.core.pc_parser import PCParsedFile
+from app.core.text import normalize_name
 from app.models.pc_schemas import (
     PCAIReport,
     PCAnalysisMeta,
@@ -43,26 +44,32 @@ def _round(v: float | None, n: int = 2) -> float | None:
     return round(v, n) if v is not None else None
 
 
-def _rank_by_sales(products: dict[str, tuple[float, float, float]]) -> dict[str, int]:
-    """매출액 내림차순 순위(1-based). products: name -> (price, qty, sales)."""
+def _rank_by_sales(products: dict[str, dict]) -> dict[str, int]:
+    """매출액 내림차순 순위(1-based). products: key -> {name,price,qty,sales}."""
     ordered = sorted(
-        ((n, v[2]) for n, v in products.items() if v[2] > 0),
+        ((k, e["sales"]) for k, e in products.items() if e["sales"] > 0),
         key=lambda x: x[1],
         reverse=True,
     )
-    return {n: i + 1 for i, (n, _) in enumerate(ordered)}
+    return {k: i + 1 for i, (k, _) in enumerate(ordered)}
 
 
-def _as_map(pf: PCParsedFile) -> dict[str, tuple[float, float, float]]:
-    """상품명 -> (단가, 개수, 매출). 동일명은 합산."""
-    out: dict[str, list[float]] = {}
+def _as_map(pf: PCParsedFile) -> dict[str, dict]:
+    """정규화이름(키) -> {name(대표), price(평균), qty, sales}. 띄어쓰기 변형 동일상품 합산."""
+    out: dict[str, dict] = {}
+    name_sales: dict[str, dict[str, float]] = {}
     for p in pf.products:
-        acc = out.setdefault(p.name, [0.0, 0.0, 0.0])
-        if p.unit_price:
-            acc[0] = p.unit_price
-        acc[1] += p.qty
-        acc[2] += p.sales
-    return {n: (v[0], v[1], v[2]) for n, v in out.items()}
+        key = normalize_name(p.name) or p.name
+        e = out.setdefault(key, {"name": p.name, "price": 0.0, "qty": 0.0, "sales": 0.0})
+        e["qty"] += p.qty
+        e["sales"] += p.sales
+        d = name_sales.setdefault(key, {})
+        d[p.name] = d.get(p.name, 0.0) + p.sales
+    for key, e in out.items():
+        # 대표 표시명 = 변형 중 매출 최대, 단가 = 평균(매출/개수)
+        e["name"] = max(name_sales[key].items(), key=lambda kv: kv[1])[0]
+        e["price"] = (e["sales"] / e["qty"]) if e["qty"] else 0.0
+    return out
 
 
 def _to_item(p: PCProductAnalysis, value: float | None, detail: str) -> PCInsightItem:
@@ -76,21 +83,22 @@ def _to_item(p: PCProductAnalysis, value: float | None, detail: str) -> PCInsigh
 
 
 def _build_products(
-    prev: dict[str, tuple[float, float, float]],
-    curr: dict[str, tuple[float, float, float]],
+    prev: dict[str, dict],
+    curr: dict[str, dict],
 ) -> list[PCProductAnalysis]:
     prev_rank = _rank_by_sales(prev)
     curr_rank = _rank_by_sales(curr)
-    total_curr = sum(v[2] for v in curr.values())
+    total_curr = sum(e["sales"] for e in curr.values())
 
     out: list[PCProductAnalysis] = []
-    for name in set(prev) | set(curr):
-        c = curr.get(name)
-        p = prev.get(name)
-        c_price, c_qty, c_sales = c if c else (0.0, 0.0, 0.0)
-        p_price, p_qty, p_sales = p if p else (0.0, 0.0, 0.0)
+    for key in set(prev) | set(curr):
+        c = curr.get(key)
+        p = prev.get(key)
+        name = (c or p)["name"]
+        c_price, c_qty, c_sales = (c["price"], c["qty"], c["sales"]) if c else (0.0, 0.0, 0.0)
+        p_price, p_qty, p_sales = (p["price"], p["qty"], p["sales"]) if p else (0.0, 0.0, 0.0)
 
-        rc, rp = curr_rank.get(name), prev_rank.get(name)
+        rc, rp = curr_rank.get(key), prev_rank.get(key)
         out.append(
             PCProductAnalysis(
                 name=name,
@@ -155,20 +163,36 @@ def _build_insights(products: list[PCProductAnalysis]) -> PCInsights:
     )
 
 
+def _agg_categories(cats) -> dict[str, dict]:
+    """분류명 정규화 키로 합산. -> key -> {name(대표), sales, qty}."""
+    out: dict[str, dict] = {}
+    name_sales: dict[str, dict[str, float]] = {}
+    for c in cats:
+        key = normalize_name(c.name) or c.name
+        e = out.setdefault(key, {"name": c.name, "sales": 0.0, "qty": 0.0})
+        e["sales"] += c.sales
+        e["qty"] += c.qty
+        d = name_sales.setdefault(key, {})
+        d[c.name] = d.get(c.name, 0.0) + c.sales
+    for key, e in out.items():
+        e["name"] = max(name_sales[key].items(), key=lambda kv: kv[1])[0]
+    return out
+
+
 def _build_categories(prev: PCParsedFile, curr: PCParsedFile) -> list[PCCategorySales]:
-    pmap = {c.name: c for c in prev.categories}
-    cmap = {c.name: c for c in curr.categories}
+    pmap = _agg_categories(prev.categories)
+    cmap = _agg_categories(curr.categories)
     out: list[PCCategorySales] = []
-    for name in set(pmap) | set(cmap):
-        c = cmap.get(name)
-        p = pmap.get(name)
-        c_sales = c.sales if c else 0.0
-        p_sales = p.sales if p else 0.0
+    for key in set(pmap) | set(cmap):
+        c = cmap.get(key)
+        p = pmap.get(key)
+        c_sales = c["sales"] if c else 0.0
+        p_sales = p["sales"] if p else 0.0
         out.append(
             PCCategorySales(
-                name=name, curr=c_sales, prev=p_sales,
+                name=(c or p)["name"], curr=c_sales, prev=p_sales,
                 delta_pct=_round(_pct(c_sales, p_sales)),
-                qty_curr=c.qty if c else 0.0,
+                qty_curr=c["qty"] if c else 0.0,
             )
         )
     out.sort(key=lambda x: x.curr, reverse=True)
@@ -191,10 +215,10 @@ def analyze_pc(
         products, key=lambda p: max(p.curr.sales, p.prev.sales if p.prev else 0), reverse=True
     )[:PRODUCT_LIMIT]
 
-    tot_c = sum(v[2] for v in curr_map.values())
-    tot_p = sum(v[2] for v in prev_map.values())
-    qty_c = sum(v[1] for v in curr_map.values())
-    qty_p = sum(v[1] for v in prev_map.values())
+    tot_c = sum(v["sales"] for v in curr_map.values())
+    tot_p = sum(v["sales"] for v in prev_map.values())
+    qty_c = sum(v["qty"] for v in curr_map.values())
+    qty_p = sum(v["qty"] for v in prev_map.values())
 
     dashboard = PCDashboard(
         total_sales_curr=tot_c,
@@ -203,8 +227,8 @@ def analyze_pc(
         total_qty_curr=qty_c,
         total_qty_prev=qty_p,
         qty_delta_pct=_round(_pct(qty_c, qty_p)),
-        product_count_curr=sum(1 for v in curr_map.values() if v[2] > 0),
-        product_count_prev=sum(1 for v in prev_map.values() if v[2] > 0),
+        product_count_curr=sum(1 for v in curr_map.values() if v["sales"] > 0),
+        product_count_prev=sum(1 for v in prev_map.values() if v["sales"] > 0),
         avg_price_curr=round(_safe_div(tot_c, qty_c), 0),
         sales_by_category=categories[:12],
         monthly=[

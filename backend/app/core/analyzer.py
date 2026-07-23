@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 
 from app.core.groups import GROUP_ORDER, group_for
 from app.core.parser import MenuRecord, ParsedFile
+from app.core.text import normalize_name
 from app.models.schemas import (
     AnalysisMeta,
     AnalysisResult,
@@ -71,6 +72,7 @@ class _MenuAgg:
     menu_name: str
     category: str
     group: str = "기타"
+    key: str = ""          # 취합/매칭 키(정규화 이름)
     unit_price: float = 0.0
     order_count: float = 0.0
     order_amount: float = 0.0
@@ -115,19 +117,34 @@ class _MenuAgg:
 
 
 def _aggregate_menus(records: list[MenuRecord]) -> dict[str, _MenuAgg]:
-    """메뉴코드 기준으로 체인 전체 집계."""
+    """정규화 이름 기준으로 체인 전체 집계(같은 이름·다른 코드도 합침).
+
+    대표 표시명/코드/분류는 매출이 가장 큰 레코드 기준으로 선택한다.
+    """
     out: dict[str, _MenuAgg] = {}
+    rep: dict[str, tuple] = {}  # key -> (best_sales, name, code, category)
     for rec in records:
-        agg = out.get(rec.menu_code)
+        key = normalize_name(rec.menu_name) or rec.menu_code
+        agg = out.get(key)
         if agg is None:
             agg = _MenuAgg(
                 menu_code=rec.menu_code,
                 menu_name=rec.menu_name,
                 category=rec.category,
                 group=group_for(rec.category),
+                key=key,
             )
-            out[rec.menu_code] = agg
+            out[key] = agg
+            rep[key] = (-1.0, rec.menu_name, rec.menu_code, rec.category)
         agg.add(rec)
+        if rec.real_sales > rep[key][0]:
+            rep[key] = (rec.real_sales, rec.menu_name, rec.menu_code, rec.category)
+    for key, agg in out.items():
+        _, name, code, cat = rep[key]
+        agg.menu_name = name
+        agg.menu_code = code
+        agg.category = cat
+        agg.group = group_for(cat)
     return out
 
 
@@ -145,7 +162,7 @@ def _rank_map(aggs: dict[str, _MenuAgg]) -> dict[str, int]:
     for members in by_group.values():
         members.sort(key=lambda a: a.real_sales, reverse=True)
         for i, a in enumerate(members):
-            ranks[a.menu_code] = i + 1
+            ranks[a.key] = i + 1  # 집계 키(정규화 이름) 기준
     return ranks
 
 
@@ -233,7 +250,7 @@ def _build_menu_analyses(
 
         analyses.append(
             MenuAnalysis(
-                menu_code=code,
+                menu_code=ref.menu_code,
                 menu_name=ref.menu_name,
                 category=ref.category,
                 group=ref.group,

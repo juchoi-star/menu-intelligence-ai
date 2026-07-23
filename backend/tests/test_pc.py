@@ -3,7 +3,30 @@
 from __future__ import annotations
 
 from app.core.pc_analyzer import analyze_pc
-from app.core.pc_parser import parse_pc_html
+from app.core.pc_parser import PCCategory, PCParsedFile, PCProduct, parse_pc_html
+
+
+def test_whitespace_variants_merge():
+    """띄어쓰기만 다른 동일 상품/분류는 취합되고, 월간 매칭도 병합된다."""
+    prev = PCParsedFile(
+        products=[PCProduct("1리터 아메리카노", 4000, 10, 40000),
+                  PCProduct("1리터아메리카노", 4000, 5, 20000)],
+        categories=[PCCategory("음료 (ICE)", 15, 60000), PCCategory("음료(ICE)", 0, 0)],
+    )
+    curr = PCParsedFile(
+        products=[PCProduct("1리터아메리카노", 4000, 20, 80000)],
+        categories=[PCCategory("음료(ICE)", 20, 80000)],
+    )
+    res = analyze_pc(prev, curr, "5월", "6월")
+    ame = [p for p in res.products if "아메리카노" in p.name]
+    assert len(ame) == 1                      # 3개 표기가 1개로 병합
+    assert ame[0].prev.sales == 60000         # 40000 + 20000
+    assert ame[0].curr.sales == 80000
+    assert ame[0].is_new is False             # 신규 오분류 아님
+    assert ame[0].sales_growth_pct == round((80000 - 60000) / 60000 * 100, 2)
+    # 분류도 병합
+    ice = [c for c in res.categories if c.qty_curr == 20]
+    assert len(ice) == 1
 
 # 상품 테이블 2개(매출액 기준/판매개수 기준 = 동일 상품)+ 분류 테이블 1개 재현
 _HTML = """<html><head><meta charset='utf-8'></head><body>
