@@ -3,13 +3,19 @@
 from __future__ import annotations
 
 from app.core.analyzer import analyze
-from app.core.groups import GROUP_ETC, GROUP_FOOD, GROUP_LIQUOR, group_for
+from app.core.groups import (
+    GROUP_ETC,
+    GROUP_FOOD,
+    GROUP_LIQUOR,
+    GROUP_MAKGEOLLI,
+    group_for,
+)
 from app.core.parser import MenuRecord, ParsedFile
 
 
 def test_group_mapping():
     assert group_for("주류") == GROUP_LIQUOR
-    assert group_for("막걸리메뉴") == GROUP_LIQUOR
+    assert group_for("막걸리메뉴") == GROUP_MAKGEOLLI
     assert group_for("전") == GROUP_FOOD
     assert group_for("탕&식사") == GROUP_FOOD
     assert group_for("음료") == GROUP_ETC

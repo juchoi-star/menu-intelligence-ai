@@ -8,6 +8,7 @@ import type { GroupSlice } from "@/types";
 // 그룹별 대표 색상
 export const GROUP_COLOR: Record<string, string> = {
   주류: "#e5b567", // gold
+  막걸리: "#e0a3b8", // rose
   음식: "#5eead4", // teal
   기타: "#8ba0bd", // muted
 };
@@ -34,7 +35,7 @@ export function GroupBreakdown({ groups }: { groups: GroupSlice[] }) {
           ))}
         </div>
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           {groups.map((g) => (
             <div key={g.group} className="rounded-xl border border-line/60 bg-ink-800/40 p-4">
               <div className="flex items-center justify-between">

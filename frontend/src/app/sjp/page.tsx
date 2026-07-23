@@ -8,8 +8,14 @@ import { StatCard } from "@/components/StatCard";
 import { InsightList } from "@/components/InsightList";
 import { GroupBreakdown } from "@/components/GroupBreakdown";
 import { Card, CardBody, SectionHeader } from "@/components/ui/Card";
-import { CategoryBarChart, ContributionChart } from "@/components/charts/Charts";
+import { CategoryBarChart } from "@/components/charts/Charts";
 import { won, wonShort, num, pct } from "@/lib/format";
+
+const RANK_TONE: Record<string, "gold" | "neutral" | "accent" | "pos"> = {
+  주류: "gold",
+  막걸리: "neutral",
+  음식: "accent",
+};
 
 export default function DashboardPage() {
   const { result, hydrated } = useAnalysis();
@@ -63,25 +69,32 @@ export default function DashboardPage() {
             {/* 그룹별(주류/음식/기타) 분해 */}
             <GroupBreakdown groups={result.dashboard.sales_by_group} />
 
-            {/* 차트 영역 */}
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-              <Card>
-                <CardBody>
-                  <SectionHeader title="분류별 매출" subtitle="당월 vs 전월 실매출" />
-                  <CategoryBarChart data={result.dashboard.sales_by_category} />
-                </CardBody>
-              </Card>
-              <Card>
-                <CardBody>
-                  <SectionHeader title="매출 기여 TOP" subtitle="당월 실매출 상위 메뉴" />
-                  <ContributionChart
-                    data={result.insights.top_contributors.map((i) => ({
-                      name: i.menu_name,
-                      value: i.curr_real_sales,
-                    }))}
-                  />
-                </CardBody>
-              </Card>
+            {/* 분류별 매출 */}
+            <Card>
+              <CardBody>
+                <SectionHeader title="분류별 매출" subtitle="당월 vs 전월 실매출" />
+                <CategoryBarChart data={result.dashboard.sales_by_category} />
+              </CardBody>
+            </Card>
+
+            {/* 그룹별 매출 순위 (주류·막걸리·음식 분리 — 술이 음식 순위에 섞이지 않게) */}
+            <div>
+              <SectionHeader
+                title="그룹별 매출 순위"
+                subtitle="주류·막걸리·음식을 나눠 표시 (그룹 내 당월 실매출 기준)"
+              />
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+                {result.groups
+                  .filter((g) => g.group !== "기타")
+                  .map((g) => (
+                    <InsightList
+                      key={g.group}
+                      title={`${g.group} TOP`}
+                      items={g.insights.top_contributors}
+                      tone={RANK_TONE[g.group] ?? "neutral"}
+                    />
+                  ))}
+              </div>
             </div>
 
             {/* AI 요약 */}
