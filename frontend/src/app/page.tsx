@@ -28,11 +28,19 @@ const BRANDS: BrandCard[] = [
     accent: "#e5b567",
     emoji: "🎮",
   },
+  {
+    href: "/beltoon",
+    name: "벌툰",
+    tag: "만화·보드게임카페",
+    desc: "용량이 커 여러 파일로 나뉜 월별 데이터를 합산 분석. 상품 매출·판매개수·객단가·순위·분류별 증감.",
+    accent: "#a78bfa",
+    emoji: "📚",
+  },
 ];
 
 export default function BrandLanding() {
   return (
-    <main className="mx-auto flex min-h-screen max-w-4xl flex-col justify-center px-6 py-16">
+    <main className="mx-auto flex min-h-screen max-w-5xl flex-col justify-center px-6 py-16">
       <div className="mb-2 flex items-center gap-2.5">
         <div className="grid h-9 w-9 place-items-center rounded-xl bg-accent/15 ring-1 ring-accent/30">
           <span className="text-lg font-bold text-accent">M</span>
@@ -50,7 +58,7 @@ export default function BrandLanding() {
         브랜드마다 POS 데이터 형식이 달라, 각각에 맞는 전용 분석으로 안내합니다.
       </p>
 
-      <div className="mt-10 grid grid-cols-1 gap-5 sm:grid-cols-2">
+      <div className="mt-10 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
         {BRANDS.map((b) => (
           <Link
             key={b.href}

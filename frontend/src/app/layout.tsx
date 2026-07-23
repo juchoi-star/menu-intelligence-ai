@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { AnalysisProvider } from "@/lib/store";
 import { PCAnalysisProvider } from "@/lib/pcStore";
+import { BeltoonAnalysisProvider } from "@/lib/beltoonStore";
 
 export const metadata: Metadata = {
   title: "Menu Intelligence AI",
@@ -17,7 +18,9 @@ export default function RootLayout({
     <html lang="ko">
       <body>
         <AnalysisProvider>
-          <PCAnalysisProvider>{children}</PCAnalysisProvider>
+          <PCAnalysisProvider>
+            <BeltoonAnalysisProvider>{children}</BeltoonAnalysisProvider>
+          </PCAnalysisProvider>
         </AnalysisProvider>
       </body>
     </html>

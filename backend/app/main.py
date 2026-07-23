@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import analysis, health, pc
+from app.api.routes import analysis, beltoon, health, pc
 from app.config import get_settings
 from app.db.database import init_db
 
@@ -40,6 +40,7 @@ def create_app() -> FastAPI:
     app.include_router(health.router)
     app.include_router(analysis.router)
     app.include_router(pc.router)
+    app.include_router(beltoon.router)
     return app
 
 
