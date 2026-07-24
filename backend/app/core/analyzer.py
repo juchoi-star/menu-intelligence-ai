@@ -44,6 +44,23 @@ def _is_unknown(code: str) -> bool:
     return code.startswith("UNKNOWN-")
 
 
+def _period_warning(prev: ParsedFile, curr: ParsedFile) -> str | None:
+    """전월/당월 조회기간 길이가 크게 다르면 경고(예: 31일 vs 6일 → 증감률 왜곡)."""
+    if not (prev.period_start and prev.period_end and curr.period_start and curr.period_end):
+        return None
+    pd = (prev.period_end - prev.period_start).days + 1
+    cd = (curr.period_end - curr.period_start).days + 1
+    if pd <= 0 or cd <= 0:
+        return None
+    if min(pd, cd) / max(pd, cd) < 0.9:  # 10% 이상 차이
+        return (
+            f"⚠️ 비교 기간이 다릅니다 — 전월 {pd}일({prev.period_start}~{prev.period_end}) vs "
+            f"당월 {cd}일({curr.period_start}~{curr.period_end}). 기간이 다르면 증감률이 크게 왜곡됩니다. "
+            f"같은 길이(예: 각 월 1일~말일 전체)로 맞춰 다시 올려주세요."
+        )
+    return None
+
+
 def _safe_div(num: float, den: float) -> float:
     return num / den if den else 0.0
 
@@ -612,6 +629,7 @@ def analyze(
             f"(당월 {excl_sales:,.0f}원). 총매출·그룹합계에는 포함."
         )
 
+    period_warning = _period_warning(prev, curr)
     store_count = len({r.store_code for r in curr.records})
 
     meta = AnalysisMeta(
@@ -625,6 +643,7 @@ def analyze(
         store_count=store_count,
         generated_at=datetime.now(timezone.utc),
         excluded_note=excluded_note,
+        period_warning=period_warning,
     )
 
     return AnalysisResult(

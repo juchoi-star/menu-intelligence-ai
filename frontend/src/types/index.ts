@@ -161,6 +161,7 @@ export interface AnalysisMeta {
   store_count: number;
   generated_at: string;
   excluded_note: string | null;
+  period_warning: string | null;
 }
 
 export interface AnalysisResult {

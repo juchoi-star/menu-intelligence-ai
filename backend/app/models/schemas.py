@@ -199,6 +199,7 @@ class AnalysisMeta(BaseModel):
     store_count: int = 0
     generated_at: datetime
     excluded_note: str | None = None   # 순위 제외 안내(이름 미상 메뉴)
+    period_warning: str | None = None  # 전월/당월 조회기간 길이 불일치 경고
 
 
 class AnalysisResult(BaseModel):
