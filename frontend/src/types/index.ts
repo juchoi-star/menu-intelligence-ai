@@ -63,6 +63,8 @@ export interface StoreAnalysis {
   discount_rate_curr: number;
   menu_count_curr: number;
   group_sales_curr: Record<string, number>;
+  is_new: boolean;
+  is_closed: boolean;
 }
 
 export interface CategorySales {

@@ -508,6 +508,8 @@ def _build_store_analyses(
                 discount_rate_curr=round(_safe_div(c.discount_amount, c.order_amount) * 100.0, 2) if c else 0.0,
                 menu_count_curr=len(c.menus) if c else 0,
                 group_sales_curr={k: round(v, 2) for k, v in (c.group_sales if c else {}).items()},
+                is_new=(p is None or p_sales == 0),
+                is_closed=(c is None or c_sales == 0),
             )
         )
     out.sort(key=lambda s: s.real_sales_curr, reverse=True)

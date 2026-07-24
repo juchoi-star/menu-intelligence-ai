@@ -91,6 +91,8 @@ class StoreAnalysis(BaseModel):
     discount_rate_curr: float = 0
     menu_count_curr: int = 0
     group_sales_curr: dict[str, float] = Field(default_factory=dict)  # 그룹별 당월 실매출
+    is_new: bool = False        # 신규 오픈(전월 매출 없음)
+    is_closed: bool = False     # 폐점/중단(당월 매출 없음)
 
 
 class CategorySales(BaseModel):

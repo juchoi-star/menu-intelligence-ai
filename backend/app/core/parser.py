@@ -216,6 +216,56 @@ def _is_aggregate_row(
     return False
 
 
+# 헤더 라벨(공백 제거) → 필드 키. POS 양식별로 컬럼 위치가 달라도 헤더로 찾는다.
+_HEADER_FIELD: dict[str, str] = {
+    "No": "no",
+    "가맹점코드": "store_code",
+    "가맹점명": "store_name",
+    "메뉴분류": "category",
+    "메뉴코드": "menu_code",
+    "메뉴명": "menu_name",
+    "메뉴단가": "unit_price",
+    "중량": "weight",
+    "주문건수": "order_count",
+    "폐기건수": "disposal_count",
+    "주문금액": "order_amount",
+    "할인금액": "discount_amount",
+    "실매출액": "real_sales",
+    "순매출": "net_sales",
+    "부가세": "vat",
+    "매출원가": "cogs",
+    "매출이익": "gross_profit",
+    "기타금액": "etc_amount",
+    "총판매금액": "total_sales",
+}
+
+
+def _build_col_map(ws: Worksheet, header_row: int) -> dict[str, int]:
+    """헤더 행의 라벨을 읽어 필드→컬럼 인덱스 맵을 만든다(고정 위치가 아니라 이름 기반).
+
+    POS 양식마다 컬럼 순서/유무가 달라도 헤더 텍스트로 정확히 찾아 오정렬을 방지한다.
+    """
+    cmap: dict[str, int] = {}
+    for c in range(1, ws.max_column + 1):
+        raw = ws.cell(header_row, c).value
+        if raw is None:
+            continue
+        label = re.sub(r"\s+", "", str(raw))
+        field = _HEADER_FIELD.get(label)
+        if field and field not in cmap:
+            cmap[field] = c
+
+    if "menu_name" not in cmap or "real_sales" not in cmap:
+        raise ParserError(
+            "헤더에서 '메뉴명'/'실매출액' 컬럼을 찾지 못했습니다. POS 양식(헤더)을 확인하세요."
+        )
+    cmap.setdefault("no", 1)
+    # 비율(가맹점) 컬럼 = 주문건수(합계) + 2 (합계·비율(분류)·비율(가맹점) 3단 구조). 중복 롤업행 판별용.
+    if "order_count" in cmap:
+        cmap["ratio_store"] = cmap["order_count"] + 2
+    return cmap
+
+
 # ---------------------------------------------------------------------------
 # 공개 API
 # ---------------------------------------------------------------------------
@@ -223,8 +273,13 @@ def parse_worksheet(ws: Worksheet) -> ParsedFile:
     """워크시트 하나를 파싱하여 정규화된 :class:`ParsedFile` 반환."""
     header_row = _find_header_row(ws)
     data_start = header_row + 2  # 2단 병합 헤더이므로 +2
+    cmap = _build_col_map(ws, header_row)
     period_start, period_end = _extract_period(ws, header_row)
     scope = _extract_scope(ws, header_row)
+
+    def cell(r: int, field: str):
+        c = cmap.get(field)
+        return ws.cell(r, c).value if c else None
 
     records: list[MenuRecord] = []
     cur_store_code: str | None = None
@@ -232,13 +287,13 @@ def parse_worksheet(ws: Worksheet) -> ParsedFile:
     cur_category: str | None = None
 
     for r in range(data_start, ws.max_row + 1):
-        no_value = ws.cell(r, COL["no"]).value
-        store_code = _clean_str(ws.cell(r, COL["store_code"]).value)
-        store_name = _clean_str(ws.cell(r, COL["store_name"]).value)
-        category = _clean_str(ws.cell(r, COL["category"]).value)
-        menu_code = _clean_str(ws.cell(r, COL["menu_code"]).value)
-        menu_name = _clean_str(ws.cell(r, COL["menu_name"]).value)
-        ratio_store = ws.cell(r, COL["ratio_store"]).value
+        no_value = cell(r, "no")
+        store_code = _clean_str(cell(r, "store_code"))
+        store_name = _clean_str(cell(r, "store_name"))
+        category = _clean_str(cell(r, "category"))
+        menu_code = _clean_str(cell(r, "menu_code"))
+        menu_name = _clean_str(cell(r, "menu_name"))
+        ratio_store = cell(r, "ratio_store")
 
         # forward-fill: 가맹점이 바뀌면 분류 컨텍스트를 리셋한다.
         if store_code:
@@ -255,8 +310,7 @@ def parse_worksheet(ws: Worksheet) -> ParsedFile:
             # 헤더 직후 이상 데이터 방어.
             continue
 
-        raw = {f: ws.cell(r, COL[f]).value for f in NUMERIC_FIELDS}
-        numeric = {f: _to_float(raw[f]) for f in NUMERIC_FIELDS}
+        numeric = {f: _to_float(cell(r, f)) for f in NUMERIC_FIELDS}
 
         # 완전한 공백 스페이서 행(식별자·판매 모두 없음)은 건너뛴다.
         if (
