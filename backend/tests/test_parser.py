@@ -95,6 +95,39 @@ def test_totals_reconcile():
     assert total_orders == 37  # 10 + 5 + 2 + 20
 
 
+def test_store_less_report_with_alias_header():
+    """가맹점코드 컬럼이 없고 헤더 라벨이 '실매출합계'인 통합 리포트도 파싱된다.
+
+    실제로 오래된 양식의 파일에서 가맹점 컬럼 부재 + 헤더 라벨 차이로
+    파싱이 실패했던 회귀 케이스.
+    """
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.cell(1, 1, "메뉴별 매출 순위 집계")
+    ws.cell(3, 1, "전체 가맹점")
+    ws.cell(4, 1, "조회일자 : 2026-03-01 ~ 2026-03-31   ")
+    # 가맹점코드/명 없음: A No, B 메뉴분류, C 메뉴코드, D 메뉴명, E 단가, F 주문건수, N 실매출합계
+    for c, label in {1: "No", 2: "메뉴분류", 3: "메뉴코드", 4: "메뉴명",
+                     5: "메뉴단가", 6: "주문건수", 14: "실매출합계"}.items():
+        ws.cell(7, c, label)
+
+    def row(r, no, cat, code, name, price, oc, real):
+        ws.cell(r, 1, no); ws.cell(r, 2, cat); ws.cell(r, 3, code)
+        ws.cell(r, 4, name); ws.cell(r, 5, price); ws.cell(r, 6, oc); ws.cell(r, 14, real)
+
+    row(9, 1, "전", "1218", "청도미나리전", 7900, 10, 79000)
+    row(10, 2, "전", "1219", "새우미나리전", 9900, 5, 49500)
+    ws.cell(11, 1, 3); ws.cell(11, 3, "Total"); ws.cell(11, 6, 15); ws.cell(11, 14, 128500)
+    # 총계 블록(No 가 텍스트) — 제거 대상
+    ws.cell(12, 1, "총 주문건수 ")
+
+    parsed = parse_worksheet(ws)
+    assert len(parsed.records) == 2
+    assert {r.menu_name for r in parsed.records} == {"청도미나리전", "새우미나리전"}
+    assert all(r.store_name == "전체 가맹점" for r in parsed.records)  # scope 를 단일 매장명으로
+    assert sum(r.real_sales for r in parsed.records) == 128500
+
+
 def test_empty_raises():
     wb = openpyxl.Workbook()
     ws = wb.active

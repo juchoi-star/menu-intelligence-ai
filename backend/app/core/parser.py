@@ -1,14 +1,18 @@
 """POS "메뉴별 매출 순위 집계" 엑셀 파서.
 
-POS에서 추출되는 엑셀은 항상 동일한 레이아웃을 가진다.
+POS에서 추출되는 엑셀은 대체로 아래 레이아웃을 가지지만, 양식/버전에 따라
+컬럼 순서·유무·헤더 라벨 표기가 달라질 수 있어 **컬럼은 고정 위치가 아니라
+헤더 이름으로 찾는다**(:data:`_HEADER_ALIASES`, :func:`_build_col_map`).
 
   - 1~6행   : 리포트 메타(제목, 조회일자, 출력시간 등)
   - 7~8행   : 2단 병합 헤더
   - 9행~     : 데이터 (가맹점 → 메뉴분류 → 메뉴 계층)
 
 데이터 계층 구조
-  - 가맹점(B:가맹점코드, C:가맹점명)은 그룹의 첫 행에만 표기 → forward-fill
-  - 메뉴분류(D)는 분류 블록의 첫 행에만 표기 → forward-fill
+  - 가맹점(가맹점코드/가맹점명)은 그룹의 첫 행에만 표기 → forward-fill.
+    가맹점 컬럼 자체가 없는 양식(매장 통합 리포트)도 있는데, 이 경우
+    조회범위(scope, 보통 '전체 가맹점')를 단일 가상 매장명으로 사용한다.
+  - 메뉴분류는 분류 블록의 첫 행에만 표기 → forward-fill
   - 각 분류 블록은 ``Total`` 행으로, 각 가맹점은 ``소계`` 행으로 끝난다.
   - 소계 뒤에는 비율이 200% 로 찍히는 중복 롤업 행이 하나 더 있다.
   - 파일 끝에는 '총 주문건수 / 총 주문금액 ...' 총계 블록이 있다.
@@ -16,8 +20,8 @@ POS에서 추출되는 엑셀은 항상 동일한 레이아웃을 가진다.
 분석 시 Total / 소계 / 총계 / 중복 롤업 행은 모두 제거한다.
 
 깔끔한 단일 판별 규칙:
-    유효 메뉴 행 == 메뉴코드(E)가 존재하고, 'Total'이 아니며, 메뉴명(F)이 존재.
-이 규칙 하나로 Total·소계·총계·중복행이 전부 걸러진다(실제 5월/6월 파일로 검증됨).
+    유효 메뉴 행 == 메뉴코드가 존재하고, 'Total'이 아니며, 메뉴명이 존재.
+이 규칙 하나로 Total·소계·총계·중복행이 전부 걸러진다(실제 3~6월 파일로 검증됨).
 """
 
 from __future__ import annotations
@@ -216,27 +220,31 @@ def _is_aggregate_row(
     return False
 
 
-# 헤더 라벨(공백 제거) → 필드 키. POS 양식별로 컬럼 위치가 달라도 헤더로 찾는다.
+# 헤더 라벨(공백 제거) → 필드 키. POS 양식·버전별로 라벨이 조금씩 달라(예: '실매출액' vs
+# '실매출합계') 컬럼 위치가 달라도 헤더로 찾는다. 같은 필드의 라벨 변형은 리스트로 등록.
+_HEADER_ALIASES: dict[str, list[str]] = {
+    "no": ["No"],
+    "store_code": ["가맹점코드"],
+    "store_name": ["가맹점명"],
+    "category": ["메뉴분류"],
+    "menu_code": ["메뉴코드"],
+    "menu_name": ["메뉴명"],
+    "unit_price": ["메뉴단가"],
+    "weight": ["중량"],
+    "order_count": ["주문건수"],
+    "disposal_count": ["폐기건수"],
+    "order_amount": ["주문금액"],
+    "discount_amount": ["할인금액"],
+    "real_sales": ["실매출액", "실매출합계"],
+    "net_sales": ["순매출"],
+    "vat": ["부가세"],
+    "cogs": ["매출원가"],
+    "gross_profit": ["매출이익"],
+    "etc_amount": ["기타금액"],
+    "total_sales": ["총판매금액"],
+}
 _HEADER_FIELD: dict[str, str] = {
-    "No": "no",
-    "가맹점코드": "store_code",
-    "가맹점명": "store_name",
-    "메뉴분류": "category",
-    "메뉴코드": "menu_code",
-    "메뉴명": "menu_name",
-    "메뉴단가": "unit_price",
-    "중량": "weight",
-    "주문건수": "order_count",
-    "폐기건수": "disposal_count",
-    "주문금액": "order_amount",
-    "할인금액": "discount_amount",
-    "실매출액": "real_sales",
-    "순매출": "net_sales",
-    "부가세": "vat",
-    "매출원가": "cogs",
-    "매출이익": "gross_profit",
-    "기타금액": "etc_amount",
-    "총판매금액": "total_sales",
+    label: field for field, labels in _HEADER_ALIASES.items() for label in labels
 }
 
 
@@ -281,9 +289,14 @@ def parse_worksheet(ws: Worksheet) -> ParsedFile:
         c = cmap.get(field)
         return ws.cell(r, c).value if c else None
 
+    # 일부 POS 양식(예: 매장 통합 리포트)은 가맹점코드/명 컬럼이 아예 없다.
+    # 이 경우 조회범위(scope, 보통 '전체 가맹점')를 단일 가상 매장으로 취급한다.
+    has_store_col = "store_code" in cmap
+    single_store_name = scope or "전체"
+
     records: list[MenuRecord] = []
-    cur_store_code: str | None = None
-    cur_store_name: str | None = None
+    cur_store_code: str | None = None if has_store_col else single_store_name
+    cur_store_name: str | None = None if has_store_col else single_store_name
     cur_category: str | None = None
 
     for r in range(data_start, ws.max_row + 1):
