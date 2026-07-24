@@ -158,6 +158,7 @@ export interface AnalysisMeta {
   scope: string | null;
   store_count: number;
   generated_at: string;
+  excluded_note: string | null;
 }
 
 export interface AnalysisResult {

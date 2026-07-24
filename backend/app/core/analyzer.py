@@ -39,6 +39,11 @@ MIN_GROWTH_SALES = 50_000   # 할인없이 성장 후보 최소 당월 매출
 # ---------------------------------------------------------------------------
 # 수치 헬퍼
 # ---------------------------------------------------------------------------
+def _is_unknown(code: str) -> bool:
+    """이름 미상(POS가 코드/명 비운) 메뉴인지. 순위·인사이트에서 제외 대상."""
+    return code.startswith("UNKNOWN-")
+
+
 def _safe_div(num: float, den: float) -> float:
     return num / den if den else 0.0
 
@@ -159,7 +164,7 @@ def _rank_map(aggs: dict[str, _MenuAgg]) -> dict[str, int]:
     ranks: dict[str, int] = {}
     by_group: dict[str, list[_MenuAgg]] = {}
     for a in aggs.values():
-        if a.real_sales > 0:
+        if a.real_sales > 0 and not _is_unknown(a.menu_code):  # 미상은 순위 미부여
             by_group.setdefault(a.group, []).append(a)
     for members in by_group.values():
         members.sort(key=lambda a: a.real_sales, reverse=True)
@@ -424,14 +429,15 @@ def _build_group_summaries(
         members = [m for m in menus if m.group == group]
         if not members:
             continue
-        slice_ = _group_slice(group, members, total_curr_real)
+        slice_ = _group_slice(group, members, total_curr_real)  # 지표는 미상 포함(그룹합=총합)
         slices.append(slice_)
+        ranked = [m for m in members if not _is_unknown(m.menu_code)]  # 순위·인사이트는 미상 제외
         summaries.append(
             GroupSummary(
                 group=group,
                 metrics=slice_,
                 sales_by_category=_category_sales(members),
-                insights=_build_insights(members),  # 그룹 내에서 상승/하락/순위 계산
+                insights=_build_insights(ranked),
             )
         )
     return summaries, slices
@@ -559,8 +565,8 @@ def _build_dashboard(
         profit_rate_prev=round(_safe_div(pt["gross_profit"], pt["real_sales"]) * 100.0, 2),
         discount_rate_curr=round(_safe_div(ct["discount"], ct["order_amount"]) * 100.0, 2),
         discount_rate_prev=round(_safe_div(pt["discount"], pt["order_amount"]) * 100.0, 2),
-        menu_count_curr=len(curr_aggs),
-        menu_count_prev=len(prev_aggs),
+        menu_count_curr=sum(1 for a in curr_aggs.values() if not _is_unknown(a.menu_code)),
+        menu_count_prev=sum(1 for a in prev_aggs.values() if not _is_unknown(a.menu_code)),
         sales_by_category=sales_by_category,
         sales_by_group=group_slices,
         monthly=[
@@ -585,12 +591,24 @@ def analyze(
     prev_store = _aggregate_stores(prev.records)
     curr_store = _aggregate_stores(curr.records)
 
-    menus = _build_menu_analyses(prev_menu, curr_menu)
-    insights = _build_insights(menus)
+    menus_full = _build_menu_analyses(prev_menu, curr_menu)
+    # 이름 미상 메뉴: 순위/인사이트/메뉴표에서 제외(총매출·그룹합계엔 포함)
+    ranked_menus = [m for m in menus_full if not _is_unknown(m.menu_code)]
+    excluded = [m for m in menus_full if _is_unknown(m.menu_code)]
+
+    insights = _build_insights(ranked_menus)
     total_curr_real = sum(a.real_sales for a in curr_menu.values())
-    groups, group_slices = _build_group_summaries(menus, total_curr_real)
+    groups, group_slices = _build_group_summaries(menus_full, total_curr_real)
     stores = _build_store_analyses(prev_store, curr_store)
     dashboard = _build_dashboard(prev, curr, prev_menu, curr_menu, group_slices)
+
+    excluded_note = None
+    if excluded:
+        excl_sales = sum(m.curr.real_sales for m in excluded)
+        excluded_note = (
+            f"이름 미상 메뉴(POS에 메뉴명이 비어 출력된 항목)는 순위에서 제외됨 "
+            f"(당월 {excl_sales:,.0f}원). 총매출·그룹합계에는 포함."
+        )
 
     store_count = len({r.store_code for r in curr.records})
 
@@ -604,6 +622,7 @@ def analyze(
         scope=curr.scope or prev.scope,
         store_count=store_count,
         generated_at=datetime.now(timezone.utc),
+        excluded_note=excluded_note,
     )
 
     return AnalysisResult(
@@ -611,7 +630,7 @@ def analyze(
         dashboard=dashboard,
         insights=insights,
         groups=groups,
-        menus=menus,
+        menus=ranked_menus,
         stores=stores,
         ai=AIReport(),  # AI 내러티브는 상위 계층(ai 모듈)에서 채운다.
     )

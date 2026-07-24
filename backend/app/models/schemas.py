@@ -196,6 +196,7 @@ class AnalysisMeta(BaseModel):
     scope: str | None = None
     store_count: int = 0
     generated_at: datetime
+    excluded_note: str | None = None   # 순위 제외 안내(이름 미상 메뉴)
 
 
 class AnalysisResult(BaseModel):
