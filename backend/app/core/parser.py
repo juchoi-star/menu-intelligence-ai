@@ -194,6 +194,16 @@ def _extract_scope(ws: Worksheet, header_row: int) -> str | None:
     return None
 
 
+def _is_numlike(v: Any) -> bool:
+    """정수/실수, 또는 '12'·'12.0' 같은 숫자 문자열이면 True(HTML 소스는 값이 문자열)."""
+    if isinstance(v, (int, float)):
+        return True
+    if isinstance(v, str):
+        s = v.strip().replace(",", "")
+        return s.replace(".", "", 1).isdigit()
+    return False
+
+
 def _is_aggregate_row(
     no_value: Any,
     menu_code: str | None,
@@ -209,7 +219,7 @@ def _is_aggregate_row(
       - 중복 롤업 행   : 비율(가맹점)(K) 에 '200%' 포함
     이 방식은 메뉴코드/메뉴명이 비어있는 실제 판매 행(POS 데이터 결손)은 보존한다.
     """
-    if not isinstance(no_value, (int, float)):
+    if not _is_numlike(no_value):
         return True
     if menu_code and menu_code.strip().lower() in _EXCLUDE_CODE_TOKENS:
         return True
@@ -360,23 +370,108 @@ def parse_worksheet(ws: Worksheet) -> ParsedFile:
     )
 
 
+class _Cell:
+    """openpyxl 셀 최소 인터페이스(.value)."""
+
+    __slots__ = ("value",)
+
+    def __init__(self, value: Any) -> None:
+        self.value = value
+
+
+class _GridSheet:
+    """행렬(grid) 위에 openpyxl Worksheet 최소 인터페이스를 구현.
+
+    구형 .xls(xlrd)·HTML 표를 openpyxl 과 동일한 방식으로 파싱하기 위한 어댑터.
+    """
+
+    def __init__(self, grid: list[list]) -> None:
+        self._grid = grid
+        self.max_row = len(grid)
+        self.max_column = max((len(r) for r in grid), default=0)
+
+    def cell(self, row: int, column: int) -> _Cell:  # 1-based
+        r, c = row - 1, column - 1
+        if 0 <= r < len(self._grid) and 0 <= c < len(self._grid[r]):
+            return _Cell(self._grid[r][c])
+        return _Cell(None)
+
+
+def _html_to_grid(html: str) -> list[list]:
+    """HTML 표(.xls/.xlsx 로 위장된)를 행렬로 추출."""
+    from html.parser import HTMLParser
+
+    class _T(HTMLParser):
+        def __init__(self) -> None:
+            super().__init__()
+            self.rows: list[list] = []
+            self._row: list | None = None
+            self._cell: str | None = None
+
+        def handle_starttag(self, tag, attrs):
+            if tag == "tr":
+                self._row = []
+            elif tag in ("td", "th") and self._row is not None:
+                self._cell = ""
+
+        def handle_endtag(self, tag):
+            if tag == "tr" and self._row is not None:
+                self.rows.append(self._row)
+                self._row = None
+            elif tag in ("td", "th") and self._cell is not None:
+                self._row.append(self._cell.strip())  # type: ignore[union-attr]
+                self._cell = None
+
+        def handle_data(self, data):
+            if self._cell is not None:
+                self._cell += data
+
+    parser = _T()
+    parser.feed(html)
+    return parser.rows
+
+
+def _load_worksheet(source: str | bytes):
+    """파일 형식(xlsx / 구형 xls / HTML)을 매직바이트로 감지해 (sheet, workbook|None) 반환.
+
+    POS 양식이 진짜 xlsx(zip), 구형 .xls(OLE/BIFF), 또는 HTML 표로 내보내질 수 있어
+    확장자가 아니라 실제 내용으로 판별한다.
+    """
+    import io
+
+    data = source if isinstance(source, bytes) else open(source, "rb").read()
+    head = data[:8]
+
+    if head[:4] == b"PK\x03\x04":  # .xlsx (zip)
+        wb = load_workbook(io.BytesIO(data), data_only=True)
+        return wb.active, wb
+
+    if head[:4] == b"\xd0\xcf\x11\xe0":  # 구형 .xls (OLE/BIFF)
+        import xlrd
+
+        book = xlrd.open_workbook(file_contents=data)
+        sh = book.sheet_by_index(0)
+        grid = [[sh.cell_value(r, c) for c in range(sh.ncols)] for r in range(sh.nrows)]
+        return _GridSheet(grid), None
+
+    text = data.decode("utf-8", errors="replace")
+    if "<table" in text[:5000].lower() or "<html" in text[:2000].lower():  # HTML 표
+        return _GridSheet(_html_to_grid(text)), None
+
+    raise ParserError("지원하지 않는 파일 형식입니다. POS에서 .xlsx 또는 .xls 로 내보내 주세요.")
+
+
 def parse_excel(source: str | bytes) -> ParsedFile:
-    """엑셀 파일(경로 또는 bytes)을 파싱한다.
+    """POS 파일(경로 또는 bytes)을 형식 자동 감지하여 파싱한다.
 
     Args:
         source: 파일 경로 문자열 또는 업로드된 파일의 raw bytes.
     """
-    if isinstance(source, bytes):
-        import io
-
-        wb = load_workbook(io.BytesIO(source), data_only=True)
-    else:
-        wb = load_workbook(source, data_only=True)
-
+    ws, wb = _load_worksheet(source)
     try:
-        ws = wb.active
         if ws is None:
             raise ParserError("활성 시트를 찾을 수 없습니다.")
         return parse_worksheet(ws)
     finally:
-        wb.close()
+        if wb is not None:
+            wb.close()

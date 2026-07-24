@@ -134,3 +134,20 @@ def test_empty_raises():
     ws.cell(7, 1, "  No  ")
     with pytest.raises(ParserError):
         parse_worksheet(ws)
+
+
+def test_html_disguised_as_excel():
+    """HTML 표를 .xls/.xlsx 로 위장해 내보낸 파일도 파싱된다(형식 자동 감지)."""
+    from app.core.parser import parse_excel
+
+    html = """<html><body><table>
+    <tr><td>메뉴별 매출 순위 집계</td></tr>
+    <tr><td>조회일자 : 2026-03-01 ~ 2026-03-31</td></tr>
+    <tr><td>No</td><td>메뉴분류</td><td>메뉴코드</td><td>메뉴명</td><td>메뉴단가</td><td>주문건수</td><td>실매출액</td></tr>
+    <tr><td>합계</td><td></td><td></td><td></td><td></td><td>10</td><td>79000</td></tr>
+    <tr><td>1</td><td>전</td><td>1218</td><td>청도미나리전</td><td>7900</td><td>10</td><td>79000</td></tr>
+    </table></body></html>"""
+    pf = parse_excel(html.encode("utf-8"))
+    assert len(pf.records) == 1
+    assert pf.records[0].menu_name == "청도미나리전"
+    assert pf.records[0].real_sales == 79000

@@ -9,6 +9,7 @@ pydantic-settings==2.7.1
 
 # --- 엑셀 ---
 openpyxl==3.1.5
+xlrd==2.0.1                     # 구형 .xls(OLE/BIFF) 읽기 (일부 POS 양식)
 
 # --- DB ---
 SQLAlchemy==2.0.36
