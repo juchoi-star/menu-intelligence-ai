@@ -344,15 +344,27 @@ def parse_worksheet(ws: Worksheet) -> ParsedFile:
         ):
             continue
 
-        # POS 데이터 결손으로 메뉴코드/명이 비어도 판매가 있으면 보존(플레이스홀더 부여).
-        resolved_code = menu_code or f"UNKNOWN-{cur_store_code}-{no_value}"
-        resolved_name = menu_name or "(미상 메뉴)"
+        # POS 데이터 결손으로 메뉴코드/명이 비어도 판매가 있으면 보존.
+        #  - 이름이 있으면 그대로 사용.
+        #  - 이름은 없지만 분류가 있으면 "기타 <분류>"로 묶어 순위·매출에 포함
+        #    (같은 분류의 이름없는 행들은 동일 이름/코드로 통합돼 미상 개수가 최소화된다).
+        #  - 이름도 분류도 없을 때만 "(미상 메뉴)"로 두어 순위에서 제외한다.
+        effective_category = cur_category or "미분류"
+        if menu_name:
+            resolved_name = menu_name
+            resolved_code = menu_code or f"NAME-{cur_store_code}-{no_value}"
+        elif effective_category != "미분류":
+            resolved_name = f"기타 {effective_category}"
+            resolved_code = menu_code or f"ETC-{effective_category}"
+        else:
+            resolved_name = "(미상 메뉴)"
+            resolved_code = menu_code or f"UNKNOWN-{cur_store_code}-{no_value}"
 
         records.append(
             MenuRecord(
                 store_code=cur_store_code,
                 store_name=cur_store_name or cur_store_code,
-                category=cur_category or "미분류",
+                category=effective_category,
                 menu_code=resolved_code,
                 menu_name=resolved_name,
                 **numeric,

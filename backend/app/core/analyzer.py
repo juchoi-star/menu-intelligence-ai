@@ -621,13 +621,21 @@ def analyze(
     stores = _build_store_analyses(prev_store, curr_store)
     dashboard = _build_dashboard(prev, curr, prev_menu, curr_menu, group_slices)
 
-    excluded_note = None
+    # 이름은 없지만 분류가 있어 "기타 <분류>"로 묶어 순위·매출에 포함한 항목(투명성 안내).
+    grouped = [m for m in ranked_menus if m.menu_name.startswith("기타 ")]
+    notes: list[str] = []
+    if grouped:
+        grp_sales = sum(m.curr.real_sales for m in grouped)
+        notes.append(
+            f"POS에 메뉴명이 비어 출력된 항목은 분류별 '기타 OO'로 묶어 매출·순위에 포함했습니다 "
+            f"(당월 {grp_sales:,.0f}원). 정확한 메뉴명은 해당 매장 POS에서 채워주세요."
+        )
     if excluded:
         excl_sales = sum(m.curr.real_sales for m in excluded)
-        excluded_note = (
-            f"이름 미상 메뉴(POS에 메뉴명이 비어 출력된 항목)는 순위에서 제외됨 "
-            f"(당월 {excl_sales:,.0f}원). 총매출·그룹합계에는 포함."
+        notes.append(
+            f"분류조차 없는 미상 항목은 순위에서 제외됨(당월 {excl_sales:,.0f}원). 총매출·그룹합계에는 포함."
         )
+    excluded_note = " ".join(notes) if notes else None
 
     period_warning = _period_warning(prev, curr)
     store_count = len({r.store_code for r in curr.records})

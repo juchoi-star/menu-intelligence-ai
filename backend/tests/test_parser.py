@@ -65,7 +65,8 @@ def test_parse_removes_aggregate_rows_and_forward_fills():
 
     names = [r.menu_name for r in parsed.records]
     assert "김치전" in names
-    assert "(미상 메뉴)" in names          # 이름 없는 판매행 보존
+    # 이름 없는 판매행은 보존하되, 분류가 있으면 "기타 <분류>"로 묶어 포함
+    assert "기타 전" in names
     assert "김치찌개" in names
     assert not any(n in ("Total", "소계") for n in names)
 
