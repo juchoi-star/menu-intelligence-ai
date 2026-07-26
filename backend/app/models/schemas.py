@@ -141,6 +141,7 @@ class Dashboard(BaseModel):
     discount_rate_prev: float = 0
     menu_count_curr: int = 0
     menu_count_prev: int = 0
+    cost_data_available: bool = False  # POS 매출원가가 있으면 True(이익률 신뢰), 없으면 이익률=부가세제외율
     sales_by_category: list[CategorySales] = Field(default_factory=list)
     sales_by_group: list[GroupSlice] = Field(default_factory=list)
     monthly: list[MonthlyPoint] = Field(default_factory=list)

@@ -80,11 +80,23 @@ export default function DashboardPage() {
                 delta={result.dashboard.order_delta_pct}
                 hint={`전월 ${num(result.dashboard.order_count_prev)}`}
               />
-              <StatCard
-                label="이익률"
-                value={`${result.dashboard.profit_rate_curr}%`}
-                hint={`할인율 ${result.dashboard.discount_rate_curr}%`}
-              />
+              {result.dashboard.cost_data_available ? (
+                <StatCard
+                  label="이익률"
+                  value={`${result.dashboard.profit_rate_curr}%`}
+                  hint={`할인율 ${result.dashboard.discount_rate_curr}%`}
+                />
+              ) : (
+                <StatCard
+                  label="객단가"
+                  value={won(
+                    result.dashboard.order_count_curr
+                      ? Math.round(result.dashboard.total_sales_curr / result.dashboard.order_count_curr)
+                      : 0
+                  )}
+                  hint={`할인율 ${result.dashboard.discount_rate_curr}% · 원가 미제공`}
+                />
+              )}
               <StatCard
                 label="판매 메뉴수"
                 value={num(result.dashboard.menu_count_curr)}

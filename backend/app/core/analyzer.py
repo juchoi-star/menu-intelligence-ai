@@ -555,6 +555,12 @@ def _build_dashboard(
     ct = totals(curr.records)
     pt = totals(prev.records)
 
+    # 원가 데이터 유무: POS 매출원가(cogs)가 전부 0이면 '이익률'은 실제 마진이 아니라
+    # 부가세 제외 비율(≈90.9%)일 뿐이므로, 프론트가 이익률 대신 객단가를 표시하도록 신호.
+    cost_data_available = any(r.cogs > 0 for r in curr.records) or any(
+        r.cogs > 0 for r in prev.records
+    )
+
     # 분류별 매출 (그룹 태그 포함)
     cat: dict[str, list[float]] = {}
     for a in curr_aggs.values():
@@ -586,6 +592,7 @@ def _build_dashboard(
         discount_rate_prev=round(_safe_div(pt["discount"], pt["order_amount"]) * 100.0, 2),
         menu_count_curr=sum(1 for a in curr_aggs.values() if not _is_unknown(a.menu_code)),
         menu_count_prev=sum(1 for a in prev_aggs.values() if not _is_unknown(a.menu_code)),
+        cost_data_available=cost_data_available,
         sales_by_category=sales_by_category,
         sales_by_group=group_slices,
         monthly=[

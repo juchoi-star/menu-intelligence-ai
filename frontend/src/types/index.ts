@@ -109,6 +109,7 @@ export interface Dashboard {
   discount_rate_prev: number;
   menu_count_curr: number;
   menu_count_prev: number;
+  cost_data_available: boolean;
   sales_by_category: CategorySales[];
   sales_by_group: GroupSlice[];
   monthly: MonthlyPoint[];
