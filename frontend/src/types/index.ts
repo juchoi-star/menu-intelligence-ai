@@ -162,6 +162,8 @@ export interface AnalysisMeta {
   generated_at: string;
   excluded_note: string | null;
   period_warning: string | null;
+  data_quality_note: string | null;
+  data_quality_ok: boolean | null;
 }
 
 export interface AnalysisResult {

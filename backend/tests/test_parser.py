@@ -129,6 +129,31 @@ def test_store_less_report_with_alias_header():
     assert sum(r.real_sales for r in parsed.records) == 128500
 
 
+def test_reconciliation_matches_pos_totals():
+    """파일 끝 총계 블록('총 주문건수'/'총 순매출액')과 집계 합계가 일치하면 ok=True."""
+    ws = _make_sheet()
+    # 총계 블록 추가: 주문건수 37, 주문금액 315000, 실매출 310000 (test_totals_reconcile 기준)
+    ws.cell(20, 1, "총 주문건수 "); ws.cell(20, 9, 37); ws.cell(20, 13, 315000)
+    ws.cell(22, 1, "총 순매출액 "); ws.cell(22, 17, 310000)
+
+    parsed = parse_worksheet(ws)
+    assert parsed.reconciliation is not None
+    assert parsed.reconciliation.ok is True
+    assert parsed.reconciliation.note is None
+
+
+def test_reconciliation_detects_mismatch():
+    """총계 블록 값이 집계 합계와 다르면 ok=False, note 에 경고가 담긴다."""
+    ws = _make_sheet()
+    ws.cell(20, 1, "총 주문건수 "); ws.cell(20, 9, 999); ws.cell(20, 13, 315000)
+    ws.cell(22, 1, "총 순매출액 "); ws.cell(22, 17, 310000)
+
+    parsed = parse_worksheet(ws)
+    assert parsed.reconciliation is not None
+    assert parsed.reconciliation.ok is False
+    assert "주문건수" in (parsed.reconciliation.note or "")
+
+
 def test_empty_raises():
     wb = openpyxl.Workbook()
     ws = wb.active

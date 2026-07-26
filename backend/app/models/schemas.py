@@ -200,6 +200,8 @@ class AnalysisMeta(BaseModel):
     generated_at: datetime
     excluded_note: str | None = None   # 순위 제외 안내(이름 미상 메뉴)
     period_warning: str | None = None  # 전월/당월 조회기간 길이 불일치 경고
+    data_quality_note: str | None = None  # POS 원본 총계와 집계 합계 대조 결과(불일치 경고)
+    data_quality_ok: bool | None = None    # True=총계 검증 통과, False=불일치, None=검증 불가(총계블록 없음)
 
 
 class AnalysisResult(BaseModel):

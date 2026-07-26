@@ -638,6 +638,21 @@ def analyze(
     excluded_note = " ".join(notes) if notes else None
 
     period_warning = _period_warning(prev, curr)
+
+    # POS 원본 총계 대조 결과(정확도 검증). 전월/당월 중 불일치가 있으면 경고로 노출.
+    dq_parts: list[str] = []
+    recons = [getattr(prev, "reconciliation", None), getattr(curr, "reconciliation", None)]
+    for label, pf in (("전월", prev), ("당월", curr)):
+        recon = getattr(pf, "reconciliation", None)
+        if recon and recon.note:
+            dq_parts.append(f"[{label}] {recon.note}")
+    data_quality_note = " ".join(dq_parts) if dq_parts else None
+    # 양쪽 모두 총계블록이 있고 모두 통과 → True, 하나라도 불일치 → False, 검증 불가 → None
+    if any(r is not None for r in recons):
+        data_quality_ok = all(r.ok for r in recons if r is not None)
+    else:
+        data_quality_ok = None
+
     store_count = len({r.store_code for r in curr.records})
 
     meta = AnalysisMeta(
@@ -652,6 +667,8 @@ def analyze(
         generated_at=datetime.now(timezone.utc),
         excluded_note=excluded_note,
         period_warning=period_warning,
+        data_quality_note=data_quality_note,
+        data_quality_ok=data_quality_ok,
     )
 
     return AnalysisResult(

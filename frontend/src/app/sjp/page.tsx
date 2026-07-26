@@ -43,6 +43,23 @@ export default function DashboardPage() {
               </div>
             )}
 
+            {/* 데이터 정확도: POS 원본 총계 대조 결과 */}
+            {result.meta.data_quality_note ? (
+              <div className="flex items-start gap-2.5 rounded-xl border border-neg/40 bg-neg/10 px-4 py-3 text-sm text-neg">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="mt-0.5 h-5 w-5 shrink-0">
+                  <path d="M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                <span className="font-medium">{result.meta.data_quality_note}</span>
+              </div>
+            ) : result.meta.data_quality_ok ? (
+              <div className="flex items-center gap-2 text-xs text-pos/90">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4 shrink-0">
+                  <path d="M20 6 9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                <span>POS 원본 총계와 집계 합계 일치 확인됨(주문건수·주문금액·실매출 검증)</span>
+              </div>
+            ) : null}
+
             {/* KPI 카드 */}
             <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
               <StatCard

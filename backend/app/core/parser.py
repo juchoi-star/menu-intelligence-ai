@@ -117,6 +117,30 @@ class MenuRecord:
 
 
 @dataclass
+class Reconciliation:
+    """파싱 결과 합계를 파일 끝 POS 총계 블록과 대조한 결과.
+
+    행 누락/중복 집계를 즉시 탐지하기 위한 정확도 안전장치.
+    ``ok`` 가 False 면 우리가 집계한 합계가 POS 원본 총계와 다르다는 뜻이다.
+    """
+
+    ok: bool
+    checks: list[dict] = field(default_factory=list)  # [{label, pos, ours, diff}]
+
+    @property
+    def note(self) -> str | None:
+        """불일치 항목만 사람이 읽을 수 있는 경고 문자열로."""
+        bad = [c for c in self.checks if abs(c["diff"]) > _RECON_TOLERANCE]
+        if not bad:
+            return None
+        parts = [
+            f"{c['label']} 집계 {c['ours']:,.0f} vs 원본 {c['pos']:,.0f}(차이 {c['diff']:+,.0f})"
+            for c in bad
+        ]
+        return "⚠️ 원본 POS 총계와 일치하지 않습니다: " + " / ".join(parts)
+
+
+@dataclass
 class ParsedFile:
     """파싱 결과 컨테이너."""
 
@@ -124,6 +148,7 @@ class ParsedFile:
     period_end: date | None
     scope: str | None                       # 예: '전체 가맹점'
     records: list[MenuRecord] = field(default_factory=list)
+    reconciliation: Reconciliation | None = None  # POS 총계 대조 결과(정확도 검증)
 
     @property
     def period_label(self) -> str:
@@ -202,6 +227,65 @@ def _is_numlike(v: Any) -> bool:
         s = v.strip().replace(",", "")
         return s.replace(".", "", 1).isdigit()
     return False
+
+
+# 총계 대조 허용 오차(원). 부동소수 반올림 정도만 허용하고 그 이상은 불일치로 본다.
+_RECON_TOLERANCE = 1.0
+
+
+def _extract_pos_totals(ws: Worksheet) -> dict[str, float]:
+    """파일 끝 총계 블록에서 POS가 직접 찍은 총합을 라벨 기준으로 추출.
+
+    실제 양식:
+      - '총 주문건수' 행 → 숫자 [총주문건수, 총주문금액] 순서로 등장
+      - '총 순매출액' 행 → 숫자 [총실매출(=주문금액-할인)] 등장
+    컬럼 위치는 총계 블록에서 데이터 영역과 다르게 재배치되므로, 컬럼이 아니라
+    '행 안의 숫자 값 순서'로 읽는다.
+    """
+    totals: dict[str, float] = {}
+    for r in range(1, ws.max_row + 1):
+        label = _clean_str(ws.cell(r, 1).value)
+        if not label:
+            continue
+        key = re.sub(r"\s+", "", label)
+        if "총주문건수" not in key and "총순매출" not in key:
+            continue
+        nums = [
+            _to_float(ws.cell(r, c).value)
+            for c in range(2, ws.max_column + 1)
+            if _is_numlike(ws.cell(r, c).value)
+        ]
+        nums = [n for n in nums if n]  # 0 제거(빈 셀·비율 등)
+        if "총주문건수" in key and len(nums) >= 2:
+            totals.setdefault("order_count", nums[0])
+            totals.setdefault("order_amount", nums[1])
+        elif "총순매출" in key and nums:
+            totals.setdefault("real_sales", nums[0])
+    return totals
+
+
+def _reconcile(records: list[MenuRecord], ws: Worksheet) -> Reconciliation | None:
+    """우리가 집계한 합계를 POS 총계 블록과 대조. 총계 블록이 없으면 None."""
+    pos = _extract_pos_totals(ws)
+    if not pos:
+        return None
+    ours = {
+        "order_count": sum(r.order_count for r in records),
+        "order_amount": sum(r.order_amount for r in records),
+        "real_sales": sum(r.real_sales for r in records),
+    }
+    labels = {"order_count": "주문건수", "order_amount": "주문금액", "real_sales": "실매출"}
+    checks: list[dict] = []
+    for field_key, pos_val in pos.items():
+        our_val = ours.get(field_key, 0.0)
+        checks.append({
+            "label": labels.get(field_key, field_key),
+            "pos": pos_val,
+            "ours": our_val,
+            "diff": our_val - pos_val,
+        })
+    ok = all(abs(c["diff"]) <= _RECON_TOLERANCE for c in checks)
+    return Reconciliation(ok=ok, checks=checks)
 
 
 def _is_aggregate_row(
@@ -379,6 +463,7 @@ def parse_worksheet(ws: Worksheet) -> ParsedFile:
         period_end=period_end,
         scope=scope,
         records=records,
+        reconciliation=_reconcile(records, ws),
     )
 
 
