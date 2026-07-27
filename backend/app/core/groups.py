@@ -15,7 +15,7 @@ from __future__ import annotations
 GROUP_LIQUOR = "주류"
 GROUP_MAKGEOLLI = "막걸리"
 GROUP_FOOD = "음식"
-GROUP_ETC = "기타"
+GROUP_ETC = "기타 음료"
 
 # 대시보드/탭 표기 순서
 GROUP_ORDER: list[str] = [GROUP_LIQUOR, GROUP_MAKGEOLLI, GROUP_FOOD, GROUP_ETC]

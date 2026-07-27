@@ -10,7 +10,7 @@ export const GROUP_COLOR: Record<string, string> = {
   주류: "#e5b567", // gold
   막걸리: "#e0a3b8", // rose
   음식: "#5eead4", // teal
-  기타: "#8ba0bd", // muted
+  "기타 음료": "#8ba0bd", // muted
 };
 
 export function GroupBreakdown({ groups }: { groups: GroupSlice[] }) {
@@ -19,7 +19,7 @@ export function GroupBreakdown({ groups }: { groups: GroupSlice[] }) {
   return (
     <Card>
       <CardBody>
-        <SectionHeader title="그룹별 매출" subtitle="주류 · 음식 · 기타 분리 분석" />
+        <SectionHeader title="그룹별 매출" subtitle="주류 · 막걸리 · 음식 · 기타 음료 분리 분석" />
 
         {/* 100% 누적 바 */}
         <div className="mb-5 flex h-3 w-full overflow-hidden rounded-full bg-white/[0.05]">

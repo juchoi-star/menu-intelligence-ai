@@ -132,7 +132,7 @@ export default function DashboardPage() {
               />
               <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
                 {result.groups
-                  .filter((g) => g.group !== "기타")
+                  .filter((g) => g.group !== "기타 음료")
                   .map((g) => (
                     <InsightList
                       key={g.group}

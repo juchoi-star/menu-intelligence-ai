@@ -123,7 +123,7 @@ export default function StoresPage() {
   );
 }
 
-const GROUP_ORDER = ["주류", "막걸리", "음식", "기타"];
+const GROUP_ORDER = ["주류", "막걸리", "음식", "기타 음료"];
 
 /** 가맹점 매출의 주류/음식/기타 구성 미니 스택바 + 금액. */
 function GroupComposition({

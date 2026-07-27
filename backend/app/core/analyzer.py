@@ -683,7 +683,7 @@ def analyze(
     )
     if unmapped:
         notes.append(
-            f"그룹 미등록 분류가 '기타'로 분류됨: {', '.join(unmapped)}. "
+            f"그룹 미등록 분류가 '기타 음료' 그룹으로 분류됨: {', '.join(unmapped)}. "
             f"주류/음식 분리에 반영하려면 분류 매핑(groups.py)에 추가가 필요합니다."
         )
     excluded_note = " ".join(notes) if notes else None
