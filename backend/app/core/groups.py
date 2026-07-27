@@ -46,3 +46,10 @@ def group_for(category: str | None) -> str:
     if not category:
         return GROUP_ETC
     return CATEGORY_GROUP.get(category.strip(), GROUP_ETC)
+
+
+def is_mapped(category: str | None) -> bool:
+    """분류명이 그룹 매핑표에 명시적으로 등록돼 있는지(폴백 아님)."""
+    if not category:
+        return False
+    return category.strip() in CATEGORY_GROUP

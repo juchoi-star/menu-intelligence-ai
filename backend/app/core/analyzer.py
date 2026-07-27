@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
-from app.core.groups import GROUP_ORDER, group_for
+from app.core.groups import GROUP_ORDER, group_for, is_mapped
 from app.core.parser import MenuRecord, ParsedFile
 from app.core.text import canonical_key, display_name
 from app.models.schemas import (
@@ -59,6 +59,41 @@ def _period_warning(prev: ParsedFile, curr: ParsedFile) -> str | None:
             f"같은 길이(예: 각 월 1일~말일 전체)로 맞춰 다시 올려주세요."
         )
     return None
+
+
+def _input_warnings(prev: ParsedFile, curr: ParsedFile) -> str | None:
+    """업로드 입력 자체의 이상(순서 뒤바뀜·동일 파일 중복)과 기간 불일치를 한 번에 점검.
+
+    잘못된 입력으로 인한 엉뚱한 분석 결과를 막기 위한 방어선.
+    """
+    warns: list[str] = []
+
+    # ① 전월/당월 순서 뒤바뀜: 전월 기간이 당월보다 나중.
+    if prev.period_start and curr.period_start and prev.period_start > curr.period_start:
+        warns.append(
+            f"⚠️ 전월/당월 순서가 뒤바뀐 것 같습니다 — 전월({prev.period_label})이 "
+            f"당월({curr.period_label})보다 나중입니다. 업로드 순서를 확인하세요."
+        )
+
+    # ② 동일 파일 중복 업로드: 같은 기간 + 같은 실매출 합계.
+    same_period = (
+        prev.period_start
+        and prev.period_start == curr.period_start
+        and prev.period_end == curr.period_end
+    )
+    prev_sales = sum(r.real_sales for r in prev.records)
+    curr_sales = sum(r.real_sales for r in curr.records)
+    if same_period and abs(prev_sales - curr_sales) < 1.0:
+        warns.append(
+            "⚠️ 전월과 당월 파일이 동일한 기간·매출입니다 — 같은 파일을 두 번 올린 것 같습니다. "
+            "서로 다른 두 달의 파일을 올려주세요."
+        )
+
+    pw = _period_warning(prev, curr)
+    if pw:
+        warns.append(pw)
+
+    return " ".join(warns) if warns else None
 
 
 def _safe_div(num: float, den: float) -> float:
@@ -642,9 +677,22 @@ def analyze(
         notes.append(
             f"분류조차 없는 미상 항목은 순위에서 제외됨(당월 {excl_sales:,.0f}원). 총매출·그룹합계에는 포함."
         )
+    # 그룹 매핑표에 없는 새 분류가 등장하면 '기타'로 폴백되므로 안내(주류/음식 분리 정확도).
+    unmapped = sorted(
+        {
+            r.category
+            for r in curr.records
+            if r.category and not is_mapped(r.category) and not r.category.startswith("기타 ")
+        }
+    )
+    if unmapped:
+        notes.append(
+            f"그룹 미등록 분류가 '기타'로 분류됨: {', '.join(unmapped)}. "
+            f"주류/음식 분리에 반영하려면 분류 매핑(groups.py)에 추가가 필요합니다."
+        )
     excluded_note = " ".join(notes) if notes else None
 
-    period_warning = _period_warning(prev, curr)
+    period_warning = _input_warnings(prev, curr)
 
     # POS 원본 총계 대조 결과(정확도 검증). 전월/당월 중 불일치가 있으면 경고로 노출.
     dq_parts: list[str] = []

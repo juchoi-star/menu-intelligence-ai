@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import date
+
 from app.core.analyzer import analyze
 from app.core.groups import (
     GROUP_ETC,
@@ -9,6 +11,7 @@ from app.core.groups import (
     GROUP_LIQUOR,
     GROUP_MAKGEOLLI,
     group_for,
+    is_mapped,
 )
 from app.core.parser import MenuRecord, ParsedFile
 
@@ -74,6 +77,45 @@ def test_group_contribution_is_within_group():
     assert by_code["F1"].contribution_pct == 100.0       # 그룹 내
     # 전체 대비 기여도는 별도 필드
     assert round(by_code["F1"].contribution_overall_pct, 1) == round(100 / 1100 * 100, 1)
+
+
+def test_is_mapped():
+    assert is_mapped("주류") is True
+    assert is_mapped("미분류") is True
+    assert is_mapped("신규분류XYZ") is False
+    assert is_mapped(None) is False
+
+
+def test_unmapped_category_note():
+    """그룹 매핑표에 없는 새 분류가 등장하면 excluded_note 로 안내된다."""
+    curr = _make([
+        _rec("S1", "주류", "L1", "소주", 500),
+        _rec("S1", "신규분류ZZ", "N1", "신메뉴", 300),
+    ])
+    prev = _make([_rec("S1", "주류", "L1", "소주", 400)])
+    res = analyze(prev, curr)
+    assert res.meta.excluded_note and "신규분류ZZ" in res.meta.excluded_note
+
+
+def _make_dated(records, start, end):
+    return ParsedFile(period_start=start, period_end=end, scope="테스트", records=records)
+
+
+def test_input_warning_reversed_order():
+    """전월 기간이 당월보다 나중이면 순서 뒤바뀜 경고."""
+    a = _make_dated([_rec("S1", "주류", "L1", "소주", 100)], date(2026, 4, 1), date(2026, 4, 30))
+    b = _make_dated([_rec("S1", "주류", "L1", "소주", 200)], date(2026, 3, 1), date(2026, 3, 31))
+    res = analyze(a, b)  # prev=4월, curr=3월 → 뒤바뀜
+    assert res.meta.period_warning and "뒤바뀐" in res.meta.period_warning
+
+
+def test_input_warning_duplicate_file():
+    """같은 기간·같은 매출이면 동일 파일 중복 업로드 경고."""
+    recs = [_rec("S1", "주류", "L1", "소주", 100)]
+    a = _make_dated(list(recs), date(2026, 3, 1), date(2026, 3, 31))
+    b = _make_dated(list(recs), date(2026, 3, 1), date(2026, 3, 31))
+    res = analyze(a, b)
+    assert res.meta.period_warning and "동일한" in res.meta.period_warning
 
 
 def test_group_summaries_present():

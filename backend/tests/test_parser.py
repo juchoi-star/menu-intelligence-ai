@@ -154,6 +154,18 @@ def test_reconciliation_detects_mismatch():
     assert "주문건수" in (parsed.reconciliation.note or "")
 
 
+def test_to_float_accounting_negative():
+    """회계식 음수 '(1,000)' 은 -1000 으로, 통화/콤마도 안전 변환."""
+    from app.core.parser import _to_float
+
+    assert _to_float("(1,000)") == -1000.0
+    assert _to_float("1,234") == 1234.0
+    assert _to_float("₩5,000") == 5000.0
+    assert _to_float("") == 0.0
+    assert _to_float(None) == 0.0
+    assert _to_float("abc") == 0.0
+
+
 def test_empty_raises():
     wb = openpyxl.Workbook()
     ws = wb.active

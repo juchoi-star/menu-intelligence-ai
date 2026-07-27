@@ -174,18 +174,27 @@ def _clean_str(value: Any) -> str | None:
 
 
 def _to_float(value: Any) -> float:
-    """숫자 셀을 float 으로 안전 변환. 통화기호·콤마·% 방어."""
+    """숫자 셀을 float 으로 안전 변환. 통화기호·콤마·%·회계식 음수 방어.
+
+    회계 표기에서 음수는 '(1,000)' 처럼 괄호로 감싸므로 이를 -1000 으로 해석한다
+    (할인/반품/조정 행에서 등장 가능).
+    """
     if value is None:
         return 0.0
     if isinstance(value, (int, float)):
         return float(value)
-    text = str(value).strip().replace(",", "").replace("₩", "").replace("%", "")
+    text = str(value).strip()
+    negative = text.startswith("(") and text.endswith(")")  # 회계식 음수
+    if negative:
+        text = text[1:-1]
+    text = text.replace(",", "").replace("₩", "").replace("%", "").strip()
     if not text:
         return 0.0
     try:
-        return float(text)
+        num = float(text)
     except ValueError:
         return 0.0
+    return -num if negative else num
 
 
 def _find_header_row(ws: Worksheet, max_scan: int = 20) -> int:
