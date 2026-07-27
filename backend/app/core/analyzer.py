@@ -62,20 +62,15 @@ def _period_warning(prev: ParsedFile, curr: ParsedFile) -> str | None:
 
 
 def _input_warnings(prev: ParsedFile, curr: ParsedFile) -> str | None:
-    """업로드 입력 자체의 이상(순서 뒤바뀜·동일 파일 중복)과 기간 불일치를 한 번에 점검.
+    """업로드 입력 자체의 이상(동일 파일 중복)과 기간 불일치를 점검.
 
     잘못된 입력으로 인한 엉뚱한 분석 결과를 막기 위한 방어선.
+    (전월/당월 순서 뒤바뀜은 라우트의 _order_by_period 가 날짜순으로 자동 정렬하므로
+     별도 경고가 필요 없다 — 앱이 알아서 바로잡는다.)
     """
     warns: list[str] = []
 
-    # ① 전월/당월 순서 뒤바뀜: 전월 기간이 당월보다 나중.
-    if prev.period_start and curr.period_start and prev.period_start > curr.period_start:
-        warns.append(
-            f"⚠️ 전월/당월 순서가 뒤바뀐 것 같습니다 — 전월({prev.period_label})이 "
-            f"당월({curr.period_label})보다 나중입니다. 업로드 순서를 확인하세요."
-        )
-
-    # ② 동일 파일 중복 업로드: 같은 기간 + 같은 실매출 합계.
+    # 동일 파일 중복 업로드: 같은 기간 + 같은 실매출 합계.
     same_period = (
         prev.period_start
         and prev.period_start == curr.period_start

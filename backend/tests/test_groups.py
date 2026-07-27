@@ -101,14 +101,6 @@ def _make_dated(records, start, end):
     return ParsedFile(period_start=start, period_end=end, scope="테스트", records=records)
 
 
-def test_input_warning_reversed_order():
-    """전월 기간이 당월보다 나중이면 순서 뒤바뀜 경고."""
-    a = _make_dated([_rec("S1", "주류", "L1", "소주", 100)], date(2026, 4, 1), date(2026, 4, 30))
-    b = _make_dated([_rec("S1", "주류", "L1", "소주", 200)], date(2026, 3, 1), date(2026, 3, 31))
-    res = analyze(a, b)  # prev=4월, curr=3월 → 뒤바뀜
-    assert res.meta.period_warning and "뒤바뀐" in res.meta.period_warning
-
-
 def test_input_warning_duplicate_file():
     """같은 기간·같은 매출이면 동일 파일 중복 업로드 경고."""
     recs = [_rec("S1", "주류", "L1", "소주", 100)]
