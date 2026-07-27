@@ -439,16 +439,23 @@ def parse_worksheet(ws: Worksheet) -> ParsedFile:
 
         # POS 데이터 결손으로 메뉴코드/명이 비어도 판매가 있으면 보존.
         #  - 이름이 있으면 그대로 사용.
-        #  - 이름은 없지만 분류가 있으면 "기타 <분류>"로 묶어 순위·매출에 포함
-        #    (같은 분류의 이름없는 행들은 동일 이름/코드로 통합돼 미상 개수가 최소화된다).
+        #  - 이름은 없지만 분류가 있으면 "기타 <분류> (<단가>원)"로 묶어 순위·매출에 포함.
+        #    단가별로 나누는 이유: 가격이 변동돼 이름이 빠진 판매(예: 페퍼로니피자감자전
+        #    12,900→13,900원 인상분)가 가격별 라인으로 드러나 반영되게 하기 위함.
+        #    (단가가 같은 이름없는 행들은 하나로 통합돼 미상 개수도 최소화된다.)
         #  - 이름도 분류도 없을 때만 "(미상 메뉴)"로 두어 순위에서 제외한다.
         effective_category = cur_category or "미분류"
         if menu_name:
             resolved_name = menu_name
             resolved_code = menu_code or f"NAME-{cur_store_code}-{no_value}"
         elif effective_category != "미분류":
-            resolved_name = f"기타 {effective_category}"
-            resolved_code = menu_code or f"ETC-{effective_category}"
+            unit_price = int(round(numeric.get("unit_price") or 0))
+            if unit_price > 0:
+                resolved_name = f"기타 {effective_category} ({unit_price:,}원)"
+                resolved_code = menu_code or f"ETC-{effective_category}-{unit_price}"
+            else:
+                resolved_name = f"기타 {effective_category}"
+                resolved_code = menu_code or f"ETC-{effective_category}"
         else:
             resolved_name = "(미상 메뉴)"
             resolved_code = menu_code or f"UNKNOWN-{cur_store_code}-{no_value}"

@@ -664,8 +664,9 @@ def analyze(
     if grouped:
         grp_sales = sum(m.curr.real_sales for m in grouped)
         notes.append(
-            f"POS에 메뉴명이 비어 출력된 항목은 분류별 '기타 OO'로 묶어 매출·순위에 포함했습니다 "
-            f"(당월 {grp_sales:,.0f}원). 정확한 메뉴명은 해당 매장 POS에서 채워주세요."
+            f"POS에 메뉴명이 비어 출력된 항목은 분류·단가별 '기타 OO (가격)'로 묶어 매출·순위에 "
+            f"포함했습니다 (당월 {grp_sales:,.0f}원). 가격이 변동돼 이름이 빠진 판매도 가격별로 여기에 "
+            f"반영됩니다. 정확한 메뉴명은 해당 매장 POS에서 채워주세요."
         )
     if excluded:
         excl_sales = sum(m.curr.real_sales for m in excluded)
