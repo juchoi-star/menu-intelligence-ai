@@ -401,6 +401,11 @@ def parse_worksheet(ws: Worksheet) -> ParsedFile:
     cur_store_code: str | None = None if has_store_col else single_store_name
     cur_store_name: str | None = None if has_store_col else single_store_name
     cur_category: str | None = None
+    # 메뉴 forward-fill: 한 메뉴가 여러 행에 걸칠 수 있고(가격 변동 등) 이름·코드는
+    # 첫 행에만 있다. 이후 이름·코드 없이 가격만 있는 행은 같은 메뉴의 추가 가격 행이므로
+    # 직전 메뉴명/코드를 물려받는다(다음 메뉴명·분류·가맹점이 나오면 리셋).
+    cur_menu_code: str | None = None
+    cur_menu_name: str | None = None
 
     for r in range(data_start, ws.max_row + 1):
         no_value = cell(r, "no")
@@ -411,14 +416,17 @@ def parse_worksheet(ws: Worksheet) -> ParsedFile:
         menu_name = _clean_str(cell(r, "menu_name"))
         ratio_store = cell(r, "ratio_store")
 
-        # forward-fill: 가맹점이 바뀌면 분류 컨텍스트를 리셋한다.
+        # forward-fill: 가맹점이 바뀌면 분류·메뉴 컨텍스트를 리셋한다.
         if store_code:
             cur_store_code = store_code
             cur_store_name = store_name or cur_store_name
             cur_category = None
+            cur_menu_code = cur_menu_name = None
         # '소계' 는 분류명이 아니라 소계 라벨이므로 forward-fill 대상에서 제외.
+        # 새 분류 블록이 시작되면 메뉴 컨텍스트도 리셋(분류 경계를 넘어 물려받지 않음).
         if category and category != "소계":
             cur_category = category
+            cur_menu_code = cur_menu_name = None
 
         if _is_aggregate_row(no_value, menu_code, category, ratio_store):
             continue
@@ -437,17 +445,22 @@ def parse_worksheet(ws: Worksheet) -> ParsedFile:
         ):
             continue
 
-        # POS 데이터 결손으로 메뉴코드/명이 비어도 판매가 있으면 보존.
-        #  - 이름이 있으면 그대로 사용.
-        #  - 이름은 없지만 분류가 있으면 "기타 <분류> (<단가>원)"로 묶어 순위·매출에 포함.
-        #    단가별로 나누는 이유: 가격이 변동돼 이름이 빠진 판매(예: 페퍼로니피자감자전
-        #    12,900→13,900원 인상분)가 가격별 라인으로 드러나 반영되게 하기 위함.
-        #    (단가가 같은 이름없는 행들은 하나로 통합돼 미상 개수도 최소화된다.)
-        #  - 이름도 분류도 없을 때만 "(미상 메뉴)"로 두어 순위에서 제외한다.
+        # POS 데이터 결손/구조로 메뉴코드·명이 비어도 판매가 있으면 보존.
+        #  - 이름이 있으면 새 메뉴 → 그대로 사용하고 forward-fill 기준으로 등록.
+        #  - 이름·코드가 둘 다 없으면(가격만) 직전 메뉴의 추가 가격 행이므로 그 메뉴명/코드를
+        #    물려받는다(예: 페퍼로니피자감자전 12,900원 다음 줄의 13,900원 인상분 → 페퍼로니로 합산).
+        #  - 물려받을 직전 메뉴가 없으면(블록 첫 행이 공백) 분류 기반 '기타 <분류> (<단가>원)'.
+        #  - 이름·직전메뉴·분류 모두 없을 때만 "(미상 메뉴)"로 두어 순위에서 제외한다.
         effective_category = cur_category or "미분류"
         if menu_name:
             resolved_name = menu_name
             resolved_code = menu_code or f"NAME-{cur_store_code}-{no_value}"
+            cur_menu_name = resolved_name          # 이후 공백 가격행이 물려받을 기준
+            cur_menu_code = resolved_code
+        elif not menu_code and cur_menu_name:
+            # 이름·코드 없는 가격 변동 행 → 직전 메뉴에 합산(forward-fill)
+            resolved_name = cur_menu_name
+            resolved_code = cur_menu_code
         elif effective_category != "미분류":
             unit_price = int(round(numeric.get("unit_price") or 0))
             if unit_price > 0:

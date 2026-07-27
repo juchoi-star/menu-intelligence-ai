@@ -65,8 +65,9 @@ def test_parse_removes_aggregate_rows_and_forward_fills():
 
     names = [r.menu_name for r in parsed.records]
     assert "김치전" in names
-    # 이름 없는 판매행은 보존하되, 분류가 있으면 "기타 <분류> (<단가>원)"로 묶어 포함
-    assert any(n.startswith("기타 전") for n in names)
+    # 이름·코드 없는 가격 행은 직전 메뉴(해물파전)로 forward-fill 되어 합쳐진다
+    assert names.count("해물파전") == 2
+    assert not any("기타" in n or n == "(미상 메뉴)" for n in names)
     assert "김치찌개" in names
     assert not any(n in ("Total", "소계") for n in names)
 
@@ -152,6 +153,53 @@ def test_reconciliation_detects_mismatch():
     assert parsed.reconciliation is not None
     assert parsed.reconciliation.ok is False
     assert "주문건수" in (parsed.reconciliation.note or "")
+
+
+def test_menu_forward_fill_price_variant():
+    """이름·코드 없이 가격만 있는 행은 직전 메뉴의 추가 가격 행으로 합산된다."""
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.cell(1, 1, "메뉴별 매출 순위 집계")
+    ws.cell(4, 1, "조회일자 : 2026-06-01 ~ 2026-06-30")
+    for c, label in {1: "No", 2: "가맹점코드", 3: "가맹점명", 4: "메뉴분류",
+                     5: "메뉴코드", 6: "메뉴명", 7: "메뉴단가", 9: "주문 건수",
+                     17: "실매출액"}.items():
+        ws.cell(7, c, label)
+
+    def row(r, no, code, name, cat, mcode, mname, price, oc, real):
+        ws.cell(r, 1, no); ws.cell(r, 2, code); ws.cell(r, 3, name); ws.cell(r, 4, cat)
+        ws.cell(r, 5, mcode); ws.cell(r, 6, mname); ws.cell(r, 7, price)
+        ws.cell(r, 9, oc); ws.cell(r, 17, real)
+
+    row(9, 1, "F1", "가맹점A", "전", "1225", "페퍼로니피자감자전", 12900, 2, 25800)
+    # 가격 인상 행: 이름·코드 없음, 가격만 → 위 페퍼로니로 합산되어야 함
+    row(10, 2, None, None, None, None, None, 13900, 23, 319700)
+    ws.cell(11, 1, "총 주문건수 ")
+
+    parsed = parse_worksheet(ws)
+    pep = [r for r in parsed.records if r.menu_name == "페퍼로니피자감자전"]
+    assert len(pep) == 2                       # 두 가격 행 모두 같은 이름으로 보존
+    assert sum(r.order_count for r in pep) == 25   # 2 + 23
+    assert not any(r.menu_name.startswith("기타") for r in parsed.records)
+
+
+def test_nameless_at_block_start_falls_back():
+    """직전 메뉴가 없는(블록 첫 행이 공백) 경우엔 '기타 <분류> (<단가>원)' 로 폴백."""
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.cell(1, 1, "메뉴별 매출 순위 집계")
+    ws.cell(4, 1, "조회일자 : 2026-06-01 ~ 2026-06-30")
+    for c, label in {1: "No", 2: "가맹점코드", 3: "가맹점명", 4: "메뉴분류",
+                     5: "메뉴코드", 6: "메뉴명", 7: "메뉴단가", 9: "주문 건수",
+                     17: "실매출액"}.items():
+        ws.cell(7, c, label)
+    # 분류 '주류' 블록이 이름 없는 행으로 시작
+    ws.cell(9, 1, 1); ws.cell(9, 2, "F1"); ws.cell(9, 3, "가맹점A"); ws.cell(9, 4, "주류")
+    ws.cell(9, 7, 5000); ws.cell(9, 9, 3); ws.cell(9, 17, 15000)
+    ws.cell(10, 1, "총 주문건수 ")
+
+    parsed = parse_worksheet(ws)
+    assert parsed.records[0].menu_name == "기타 주류 (5,000원)"
 
 
 def test_to_float_accounting_negative():
