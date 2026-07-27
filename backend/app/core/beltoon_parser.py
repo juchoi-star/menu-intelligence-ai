@@ -13,6 +13,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import io
 import re
 import warnings
@@ -85,7 +86,20 @@ def _extract_period(ws) -> tuple[str | None, str | None]:
     return None, None
 
 
-def _parse_one(source) -> tuple[list[_RawProduct], tuple[str | None, str | None]]:
+def _find_total_row(ws, header_row: int) -> tuple[float, float] | None:
+    """헤더 다음의 '합계' 행에서 (판매수, 결제합계) 를 읽는다. 없으면 None.
+
+    이 값은 파일이 스스로 밝힌 총계라, 우리가 집계한 상품행 합과 대조해
+    행 누락/중복을 즉시 탐지하는 데 쓴다(실측: 정확히 일치).
+    """
+    for r in range(header_row + 1, min(header_row + 4, ws.max_row + 1)):
+        label = _clean(ws.cell(r, _COL["no"]).value)
+        if label and "합계" in label:
+            return _num(ws.cell(r, _COL["qty"]).value), _num(ws.cell(r, _COL["sales"]).value)
+    return None
+
+
+def _parse_one(source) -> tuple[list[_RawProduct], tuple[str | None, str | None], tuple[float, float] | None]:
     if isinstance(source, bytes):
         wb = load_workbook(io.BytesIO(source), data_only=True)
     else:
@@ -94,6 +108,7 @@ def _parse_one(source) -> tuple[list[_RawProduct], tuple[str | None, str | None]
         ws = wb.active
         header = _find_header_row(ws)
         period = _extract_period(ws)
+        declared_total = _find_total_row(ws, header)
         out: list[_RawProduct] = []
         for r in range(header + 1, ws.max_row + 1):
             no = ws.cell(r, _COL["no"]).value
@@ -102,20 +117,25 @@ def _parse_one(source) -> tuple[list[_RawProduct], tuple[str | None, str | None]
                 continue
             name = _clean(ws.cell(r, _COL["name"]).value)
             code = _clean(ws.cell(r, _COL["code"]).value)
+            qty = _num(ws.cell(r, _COL["qty"]).value)
+            sales = _num(ws.cell(r, _COL["sales"]).value)
             if not name:
-                continue
+                # 이름이 비어도 판매가 있으면 버리지 않는다(매출 누락 방지).
+                if not qty and not sales:
+                    continue
+                name = f"(이름없음) {code}" if code else "(이름없음)"
             out.append(
                 _RawProduct(
                     code=code or name,
                     name=name,
                     category=_clean(ws.cell(r, _COL["category"]).value) or "미분류",
-                    qty=_num(ws.cell(r, _COL["qty"]).value),
-                    sales=_num(ws.cell(r, _COL["sales"]).value),
+                    qty=qty,
+                    sales=sales,
                 )
             )
         if not out:
             raise BeltoonParserError("상품 데이터를 찾지 못했습니다.")
-        return out, period
+        return out, period, declared_total
     finally:
         wb.close()
 
@@ -135,17 +155,70 @@ def parse_beltoon_files(sources: list, menu_only: bool = True) -> PCParsedFile:
     merged: dict[str, list] = {}   # code -> [name, category, qty, sales]
     starts: list[str] = []
     ends: list[str] = []
+    warns: list[str] = []
+    fingerprints: list[str] = []
+    seen_fp: set[str] = set()
+    ranges: list[tuple[str, str]] = []       # 중복 제외된 파일들의 (시작, 종료)
+    declared_qty = declared_sales = 0.0
+    have_declared = False
+    skipped = 0
 
     for src in sources:
-        raws, (start, end) = _parse_one(src)
+        # 같은 파일을 두 번 올리면 판매가 그대로 두 배가 되므로 내용 지문으로 차단한다.
+        raw_bytes = src if isinstance(src, bytes) else None
+        fp = hashlib.sha256(raw_bytes).hexdigest() if raw_bytes is not None else None
+        if fp:
+            fingerprints.append(fp)
+            if fp in seen_fp:
+                skipped += 1
+                continue
+            seen_fp.add(fp)
+
+        raws, (start, end), declared = _parse_one(src)
         if start:
             starts.append(start)
         if end:
             ends.append(end)
+        if start and end:
+            ranges.append((start, end))
+        if declared:
+            declared_qty += declared[0]
+            declared_sales += declared[1]
+            have_declared = True
         for rp in raws:
             acc = merged.setdefault(rp.code, [rp.name, rp.category, 0.0, 0.0])
             acc[2] += rp.qty
             acc[3] += rp.sales
+
+    if skipped:
+        warns.append(
+            f"⚠️ 같은 파일이 {skipped}개 중복 업로드되어 제외했습니다(그대로 합치면 매출이 "
+            f"두 배로 부풀려집니다). 서로 다른 기간의 분할 파일만 올려주세요."
+        )
+
+    # 분할 파일의 기간이 겹치면 겹친 구간이 이중 집계된다(내용은 달라도 위험).
+    for i in range(len(ranges)):
+        for j in range(i + 1, len(ranges)):
+            a, b = ranges[i], ranges[j]
+            if a[0] <= b[1] and b[0] <= a[1]:
+                warns.append(
+                    f"⚠️ 업로드한 파일들의 기간이 겹칩니다({a[0]}~{a[1]} / {b[0]}~{b[1]}). "
+                    f"겹친 구간이 이중으로 합산됩니다."
+                )
+                break
+        else:
+            continue
+        break
+
+    # 파일이 스스로 밝힌 '합계'와 우리가 집계한 상품행 합을 대조(행 누락/중복 탐지).
+    if have_declared:
+        our_qty = sum(v[2] for v in merged.values())
+        our_sales = sum(v[3] for v in merged.values())
+        if abs(our_sales - declared_sales) > 1.0 or abs(our_qty - declared_qty) > 1.0:
+            warns.append(
+                f"⚠️ 파일 '합계'행과 집계가 일치하지 않습니다 — 판매수 {our_qty:,.0f} vs "
+                f"{declared_qty:,.0f}, 결제합계 {our_sales:,.0f} vs {declared_sales:,.0f}."
+            )
 
     # 메뉴/비메뉴 분리
     excl_sales = excl_qty = 0.0
@@ -180,4 +253,6 @@ def parse_beltoon_files(sources: list, menu_only: bool = True) -> PCParsedFile:
         excluded_qty=excl_qty,
         excluded_category_count=len(excl_cats),
         excluded_category_names=sorted(excl_cats),
+        warnings=warns,
+        fingerprints=fingerprints,
     )

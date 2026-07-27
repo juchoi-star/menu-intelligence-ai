@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import logging
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
@@ -32,9 +33,12 @@ async def _read_and_parse(file: UploadFile, max_bytes: int):
     if len(data) > max_bytes:
         raise HTTPException(413, f"파일이 너무 큽니다(최대 {max_bytes // (1024 * 1024)}MB).")
     try:
-        return parse_pc_html(data)
+        parsed = parse_pc_html(data)
     except PCParserError as exc:
         raise HTTPException(422, f"'{file.filename}' 파싱 실패: {exc}") from exc
+    # 내용 지문: 전월/당월에 같은 파일을 올렸는지 감지하는 데 사용.
+    parsed.fingerprints = [hashlib.sha256(data).hexdigest()]
+    return parsed
 
 
 @router.post("/compare", response_model=PCUploadResponse)

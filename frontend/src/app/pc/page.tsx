@@ -27,6 +27,24 @@ export default function PCDashboard() {
           </Card>
         ) : (
           <>
+            {result.meta.data_quality_note && (
+              <div className="flex items-start gap-2.5 rounded-xl border border-neg/40 bg-neg/10 px-4 py-3 text-sm text-neg">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="mt-0.5 h-5 w-5 shrink-0">
+                  <path d="M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                <span className="font-medium">{result.meta.data_quality_note}</span>
+              </div>
+            )}
+
+            {result.meta.excluded_note && (
+              <div className="flex items-start gap-2.5 rounded-xl border border-line/70 bg-ink-800/40 px-4 py-3 text-sm text-muted">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className="mt-0.5 h-4 w-4 shrink-0 text-gold">
+                  <path d="M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                <span>{result.meta.excluded_note}</span>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
               <StatCard
                 accent

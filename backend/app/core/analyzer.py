@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 
 from app.core.groups import GROUP_ORDER, group_for, is_mapped
 from app.core.parser import MenuRecord, ParsedFile
-from app.core.text import canonical_key, display_name
+from app.core.text import display_name, fuzzy_key
 from app.models.schemas import (
     AnalysisMeta,
     AnalysisResult,
@@ -125,6 +125,7 @@ class _MenuAgg:
     category: str
     group: str = "기타"
     key: str = ""          # 취합/매칭 키(정규화 이름)
+    variants: list[str] = field(default_factory=list)  # 이 키로 합쳐진 실제 이름들
     unit_price: float = 0.0
     order_count: float = 0.0
     order_amount: float = 0.0
@@ -177,8 +178,10 @@ def _aggregate_menus(
     """
     out: dict[str, _MenuAgg] = {}
     rep: dict[str, tuple] = {}  # key -> (best_sales, name, code, category)
+    variants: dict[str, set[str]] = {}  # key -> 실제 등장한 이름들(자동 취합 내역 안내용)
     for rec in records:
-        key = canonical_key(rec.menu_name, alias_map) or rec.menu_code
+        key = fuzzy_key(rec.menu_name, alias_map) or rec.menu_code
+        variants.setdefault(key, set()).add(rec.menu_name)
         agg = out.get(key)
         if agg is None:
             agg = _MenuAgg(
@@ -199,6 +202,7 @@ def _aggregate_menus(
         agg.menu_code = code
         agg.category = cat
         agg.group = group_for(cat)
+        agg.variants = sorted(variants.get(key, set()))
     return out
 
 
@@ -685,6 +689,19 @@ def analyze(
         notes.append(
             f"그룹 미등록 분류가 '기타 음료' 그룹으로 분류됨: {', '.join(unmapped)}. "
             f"주류/음식 분리에 반영하려면 분류 매핑(groups.py)에 추가가 필요합니다."
+        )
+    # 유사명 자동 취합 내역(매장별 표기차로 갈라진 같은 메뉴를 합친 것) — 투명성 안내.
+    auto_merged = [
+        f"{a.menu_name}({'/'.join(a.variants)})"
+        for a in curr_menu.values()
+        if len(a.variants) > 1
+    ]
+    if auto_merged:
+        shown = ", ".join(auto_merged[:5])
+        more = f" 외 {len(auto_merged) - 5}건" if len(auto_merged) > 5 else ""
+        notes.append(
+            f"표기가 다른 같은 메뉴 {len(auto_merged)}건을 자동으로 합쳤습니다: {shown}{more}. "
+            f"잘못 합쳐졌거나 더 합쳐야 할 메뉴는 '이름 취합' 화면에서 조정할 수 있습니다."
         )
     excluded_note = " ".join(notes) if notes else None
 

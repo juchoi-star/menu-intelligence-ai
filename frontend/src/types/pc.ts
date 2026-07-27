@@ -85,6 +85,7 @@ export interface PCAnalysisMeta {
   product_count: number;
   generated_at: string;
   excluded_note: string | null;
+  data_quality_note: string | null;
 }
 
 export interface PCAnalysisResult {

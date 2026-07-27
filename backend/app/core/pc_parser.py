@@ -44,6 +44,10 @@ class PCParsedFile:
     excluded_qty: float = 0.0
     excluded_category_count: int = 0
     excluded_category_names: list[str] = field(default_factory=list)
+    # 데이터 품질 경고(중복 파일 업로드·기간 겹침·합계 불일치 등). 분석 결과에 노출된다.
+    warnings: list[str] = field(default_factory=list)
+    # 파일 내용 지문(중복 업로드 감지용). 전월/당월 간 비교에도 사용.
+    fingerprints: list[str] = field(default_factory=list)
 
 
 class PCParserError(ValueError):
@@ -126,6 +130,14 @@ def parse_pc_html(source: str | bytes) -> PCParsedFile:
     extractor = _TableExtractor()
     extractor.feed(html)
     if not extractor.tables:
+        # 엑셀 '웹 페이지로 저장'은 데이터가 없는 프레임셋 껍데기 + 별도 `.files` 폴더로 나뉜다.
+        # 이 경우 파일 형식 문제가 아니라 '데이터가 다른 파일에 있음'이므로 안내를 구분한다.
+        if "Excel Workbook Frameset" in html or "filelist.xml" in html:
+            raise PCParserError(
+                "이 파일은 데이터가 없는 껍데기(엑셀 프레임셋)입니다. 실제 데이터는 같은 이름의 "
+                "'.files' 폴더 안 sheet001.htm 에 있습니다. POS에서 다시 내려받거나, 엑셀에서 "
+                "'단일 파일 웹 페이지(.mht)' 또는 통합 문서(.xlsx)로 저장해 올려주세요."
+            )
         raise PCParserError("HTML 표를 찾지 못했습니다. 피씨 POS 파일이 맞는지 확인하세요.")
 
     products: dict[str, list[float]] = {}   # name -> [price, qty, sales]
@@ -149,11 +161,15 @@ def parse_pc_html(source: str | bytes) -> PCParsedFile:
                 if len(row) <= max(i_name, i_sales):
                     continue
                 name = row[i_name].strip()
-                if not name:
-                    continue
                 price = _to_float(row[i_price]) if i_price is not None else 0.0
                 qty = _to_float(row[i_qty]) if i_qty is not None else 0.0
                 sales = _to_float(row[i_sales])
+                if not name:
+                    # 이름이 비어도 판매가 있으면 버리지 않는다(총매출 누락 방지).
+                    # 단가로 구분해 두면 어떤 상품인지 추정할 단서가 남는다.
+                    if not qty and not sales:
+                        continue
+                    name = f"(이름없음) {price:,.0f}원" if price else "(이름없음)"
                 acc = products.setdefault(name, [0.0, 0.0, 0.0])
                 if price:
                     acc[0] = price

@@ -96,6 +96,7 @@ class PCAnalysisMeta(BaseModel):
     product_count: int = 0
     generated_at: datetime
     excluded_note: str | None = None   # 분석 제외 항목 안내(벌툰: 시간제 등 비메뉴)
+    data_quality_note: str | None = None  # 데이터 품질 경고(중복 파일·기간 겹침·합계 불일치)
 
 
 class PCAnalysisResult(BaseModel):

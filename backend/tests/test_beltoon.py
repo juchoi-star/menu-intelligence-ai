@@ -73,3 +73,34 @@ def test_beltoon_excludes_non_menu_categories():
     pf_all = parse_beltoon_files([a], menu_only=False)
     assert len(pf_all.products) == 5
     assert pf_all.excluded_sales == 0
+
+
+def test_duplicate_file_is_skipped_with_warning():
+    """같은 파일을 두 번 올리면 매출이 두 배로 부풀려지므로 제외하고 경고한다."""
+    a = _make_xlsx("2026-05-01 ~ 2026-05-14",
+                   [("식사", "A1", "치킨마요덮밥", 100, 500000)], 100, 500000)
+    once = parse_beltoon_files([a])
+    twice = parse_beltoon_files([a, a])
+
+    assert sum(p.sales for p in twice.products) == sum(p.sales for p in once.products)
+    assert any("중복" in w for w in twice.warnings)
+    assert not once.warnings          # 정상 업로드는 경고 없음
+
+
+def test_overlapping_periods_warn():
+    """분할 파일의 기간이 겹치면 이중 집계 위험을 경고한다."""
+    a = _make_xlsx("2026-05-01 ~ 2026-05-20",
+                   [("식사", "A1", "치킨마요덮밥", 100, 500000)], 100, 500000)
+    b = _make_xlsx("2026-05-15 ~ 2026-05-31",
+                   [("식사", "A2", "돈까스", 50, 300000)], 50, 300000)
+    res = parse_beltoon_files([a, b])
+    assert any("겹칩니다" in w for w in res.warnings)
+
+
+def test_declared_total_mismatch_warns():
+    """파일 '합계'행과 상품행 합이 다르면 경고한다(행 누락/중복 탐지)."""
+    bad = _make_xlsx("2026-05-01 ~ 2026-05-31",
+                     [("식사", "A1", "치킨마요덮밥", 100, 500000)],
+                     total_qty=999, total_sales=999999)   # 일부러 불일치
+    res = parse_beltoon_files([bad])
+    assert any("합계" in w for w in res.warnings)

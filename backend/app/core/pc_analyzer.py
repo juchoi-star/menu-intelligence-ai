@@ -10,7 +10,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from app.core.pc_parser import PCParsedFile
-from app.core.text import canonical_key, display_name, normalize_name
+from app.core.text import display_name, fuzzy_key, normalize_name
 from app.models.pc_schemas import (
     PCAIReport,
     PCAnalysisMeta,
@@ -59,7 +59,7 @@ def _as_map(pf: PCParsedFile, alias_map: dict[str, str] | None = None) -> dict[s
     out: dict[str, dict] = {}
     name_sales: dict[str, dict[str, float]] = {}
     for p in pf.products:
-        key = canonical_key(p.name, alias_map) or p.name
+        key = fuzzy_key(p.name, alias_map) or p.name
         e = out.setdefault(key, {"name": p.name, "price": 0.0, "qty": 0.0, "sales": 0.0})
         e["qty"] += p.qty
         e["sales"] += p.sales
@@ -239,6 +239,19 @@ def analyze_pc(
         ],
     )
 
+    # 데이터 품질 경고: 파서가 감지한 것(중복 파일·기간 겹침·합계 불일치) +
+    # 전월/당월 슬롯에 같은 파일을 넣은 경우(내용 지문 비교).
+    warns: list[str] = [*prev.warnings, *curr.warnings]
+    if prev.fingerprints and curr.fingerprints and set(prev.fingerprints) == set(curr.fingerprints):
+        warns.append(
+            "⚠️ 전월과 당월에 같은 파일을 올린 것 같습니다(내용이 동일). "
+            "서로 다른 두 기간의 파일을 올려주세요."
+        )
+    elif abs(tot_c - tot_p) < 1.0 and tot_c > 0 and not prev.fingerprints:
+        warns.append(
+            "⚠️ 전월과 당월의 매출 합계가 완전히 같습니다 — 같은 파일을 두 번 올렸는지 확인해주세요."
+        )
+
     meta = PCAnalysisMeta(
         prev_label=prev_label,
         curr_label=curr_label,
@@ -246,6 +259,7 @@ def analyze_pc(
         output_date_curr=curr.output_date,
         product_count=len(products),
         generated_at=datetime.now(timezone.utc),
+        data_quality_note=" ".join(warns) if warns else None,
     )
 
     return PCAnalysisResult(
