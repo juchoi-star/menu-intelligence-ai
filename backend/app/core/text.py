@@ -12,16 +12,27 @@ POS 데이터는 같은 상품/메뉴가 다르게 표기되는 경우가 많다
 from __future__ import annotations
 
 import re
+import unicodedata
 
 # 공백 + 흔한 구두점 제거 (한글은 대소문자 없음, 영문만 lower 효과)
-_STRIP = re.compile(r"[\s()\[\]{}<>·・|/\\,.!?~'\"`*#&_\-]+")
+# `\s` 는 유니코드 공백(NBSP·전각공백 등)까지 잡지만, 폭이 없어 눈에 보이지 않는
+# 제어문자(U+200B~200D 폭없는공백/결합자, U+FEFF BOM, U+00AD soft hyphen)는
+# `\s` 에 해당하지 않아 따로 제거해야 한다. 엑셀·웹 복붙으로 자주 섞여 들어오며,
+# 눈에 안 보이는 탓에 같은 이름인데 취합이 안 되는 원인이 된다.
+_STRIP = re.compile(
+    r"[\s​‌‍⁠﻿­()\[\]{}<>·・|/\\,.!?~'\"`*#&_\-]+"
+)
+
+# 유니코드 정규화: 전각 영문/숫자(Ａ→A, １→1)와 조합형 한글(ㄱ+ㅏ)을 표준형으로 통일.
+_NFKC = "NFKC"
 
 
 def normalize_name(name: str | None) -> str:
-    """자동 정규화 키: 앞뒤공백 제거 + 소문자화 + 공백/구두점 제거."""
+    """자동 정규화 키: 유니코드 정규화 + 소문자화 + 공백/구두점/비가시문자 제거."""
     if not name:
         return ""
-    return _STRIP.sub("", name.strip().lower())
+    text = unicodedata.normalize(_NFKC, str(name))
+    return _STRIP.sub("", text.strip().lower())
 
 
 # ---------------------------------------------------------------------------

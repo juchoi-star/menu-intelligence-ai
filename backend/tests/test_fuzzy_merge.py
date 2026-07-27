@@ -60,3 +60,30 @@ def test_manual_alias_still_wins():
 def test_whitespace_only_variants_merge():
     assert _same("생맥주 300cc", "생맥주300cc")
     assert _same("잔 슬러시 막걸리", "잔슬러시막걸리")
+    assert _same("아메리 카노", "아메리카노", "  아메리카노  ", "아메리  카노")
+
+
+def test_invisible_whitespace_variants_merge():
+    """눈에 보이지 않는 공백/제어문자가 섞여도 취합된다.
+
+    엑셀·웹에서 복사하면 폭없는공백(U+200B)·BOM(U+FEFF)·NBSP 등이 섞여 들어오는데,
+    보이지 않으므로 '같은 이름인데 왜 안 합쳐지지?' 의 원인이 된다.
+    """
+    assert _same(
+        "아메리카노",
+        "아메리 카노",   # NBSP
+        "아메리　카노",   # 전각 공백
+        "아메리​카노",   # 폭없는 공백
+        "아메리﻿카노",   # BOM
+        "아메리­카노",   # soft hyphen
+        "아메리‍카노",   # ZWJ
+        "아메리⁠카노",   # word joiner
+        "아메리\t카노",
+        "아메리\n카노",
+    )
+
+
+def test_fullwidth_normalized():
+    """전각 영문·숫자도 반각으로 통일해 취합한다(POS 입력기 차이)."""
+    assert _same("cola", "ＣＯＬＡ", "COLA")
+    assert _same("생맥주500cc", "생맥주５００cc")
