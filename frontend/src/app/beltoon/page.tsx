@@ -44,14 +44,13 @@ export default function BeltoonDashboard() {
                 <span>{result.meta.excluded_note}</span>
               </div>
             )}
-            <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
               <StatCard accent label="총매출" value={won(result.dashboard.total_sales_curr)}
                 delta={result.dashboard.sales_delta_pct} hint={`전월 ${wonShort(result.dashboard.total_sales_prev)}`} />
               <StatCard label="전월 대비" value={pct(result.dashboard.sales_delta_pct)}
                 hint={`${wonShort(result.dashboard.total_sales_curr - result.dashboard.total_sales_prev)} 변동`} />
               <StatCard label="판매개수" value={num(result.dashboard.total_qty_curr)}
                 delta={result.dashboard.qty_delta_pct} hint={`전월 ${num(result.dashboard.total_qty_prev)}`} />
-              <StatCard label="평균 판매단가" value={won(result.dashboard.avg_price_curr)} hint="매출 ÷ 판매개수 · 객단가 아님" />
               <StatCard label="판매 상품수" value={num(result.dashboard.product_count_curr)}
                 hint={`전월 ${num(result.dashboard.product_count_prev)}`} />
             </div>

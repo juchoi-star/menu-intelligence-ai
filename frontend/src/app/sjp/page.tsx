@@ -87,14 +87,14 @@ export default function DashboardPage() {
                   hint={`할인율 ${result.dashboard.discount_rate_curr}%`}
                 />
               ) : (
+                /* 원가 미제공 시 이익률은 부가세 제외율(≈90.9%)일 뿐이라 표시하지 않고,
+                   POS 값으로 정확히 계산되는 할인율을 보여준다.
+                   (매출÷주문건수는 손님당 금액이 아니라 오해를 부르므로 제외) */
                 <StatCard
-                  label="메뉴 건당 평균"
-                  value={won(
-                    result.dashboard.order_count_curr
-                      ? Math.round(result.dashboard.total_sales_curr / result.dashboard.order_count_curr)
-                      : 0
-                  )}
-                  hint={`실매출 ÷ 주문건수 · 손님당 금액(객단가) 아님`}
+                  label="할인율"
+                  value={`${result.dashboard.discount_rate_curr}%`}
+                  delta={result.dashboard.discount_rate_curr - result.dashboard.discount_rate_prev}
+                  hint={`전월 ${result.dashboard.discount_rate_prev}%`}
                 />
               )}
               <StatCard

@@ -45,7 +45,7 @@ export default function PCDashboard() {
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
               <StatCard
                 accent
                 label="총매출"
@@ -63,11 +63,6 @@ export default function PCDashboard() {
                 value={num(result.dashboard.total_qty_curr)}
                 delta={result.dashboard.qty_delta_pct}
                 hint={`전월 ${num(result.dashboard.total_qty_prev)}`}
-              />
-              <StatCard
-                label="평균 판매단가"
-                value={won(result.dashboard.avg_price_curr)}
-                hint="매출 ÷ 판매개수 · 객단가 아님"
               />
               <StatCard
                 label="판매 상품수"

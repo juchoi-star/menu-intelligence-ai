@@ -76,7 +76,7 @@ class PCDashboard(BaseModel):
     qty_delta_pct: float | None = None
     product_count_curr: int = 0
     product_count_prev: int = 0
-    avg_price_curr: float = 0        # 평균 판매단가(매출/개수). 손님당 금액(객단가) 아님
+    avg_price_curr: float = 0        # (미사용) 전체 매출/개수 평균. 객단가로 오해되어 화면 미표시
     sales_by_category: list[PCCategorySales] = Field(default_factory=list)
     monthly: list[PCMonthlyPoint] = Field(default_factory=list)
 

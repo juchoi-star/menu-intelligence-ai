@@ -32,7 +32,6 @@ export default function PCReportPage() {
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <Tile label="총매출" value={won(d.total_sales_curr)} />
               <Tile label="판매개수" value={num(d.total_qty_curr)} />
-              <Tile label="평균 판매단가" value={won(d.avg_price_curr)} />
               <Tile label="판매 상품수" value={num(d.product_count_curr)} />
             </div>
             <p className="mt-4 text-[15px] leading-relaxed text-white/85">{result.ai.summary}</p>

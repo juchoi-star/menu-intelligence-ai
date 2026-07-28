@@ -1,6 +1,6 @@
 """피씨(PC방) AI 분석 내러티브 (OpenAI + 규칙기반 폴백).
 
-PC 데이터는 할인·이익이 없으므로 매출·판매개수·평균 판매단가·순위 변화 중심으로 스토리를 만든다.
+PC 데이터는 할인·이익이 없으므로 매출·판매개수·상품별 단가·순위 변화 중심으로 스토리를 만든다.
 """
 
 from __future__ import annotations
@@ -57,7 +57,7 @@ def _summary(result: PCAnalysisResult) -> str:
     return (
         f"{result.meta.curr_label} 총매출은 {_won(d.total_sales_curr)}으로 전월 대비 "
         f"{abs(d.sales_delta_pct or 0)}% {direction}했습니다. "
-        f"판매개수 {d.total_qty_curr:,.0f}개({d.qty_delta_pct}%), 평균 판매단가 {_won(d.avg_price_curr)}, "
+        f"판매개수 {d.total_qty_curr:,.0f}개({d.qty_delta_pct}%), "
         f"판매 상품 수 {d.product_count_curr:,}개입니다. "
         f"매출 비중이 가장 큰 분류는 '{top_cat}'이며, 신규 {len(result.insights.new_products)}개·"
         f"판매중단 {len(result.insights.discontinued_products)}개 상품이 확인되었습니다."
@@ -79,7 +79,7 @@ def _recommendations(result: PCAnalysisResult) -> list[str]:
         recs.append(f"신규 상품 {len(ins.new_products)}개의 안착 여부를 다음 달까지 추적하세요.")
     d = result.dashboard
     if (d.qty_delta_pct or 0) < 0 and (d.sales_delta_pct or 0) >= 0:
-        recs.append("판매개수는 줄었는데 매출은 유지/증가했습니다. 평균 판매단가(가격) 상승 효과인지 확인하세요.")
+        recs.append("판매개수는 줄었는데 매출은 유지/증가했습니다. 상품별 단가 상승 효과인지 확인하세요.")
     if not recs:
         recs.append("큰 변동이 없어 상위 매출 상품의 재고·품질 유지에 집중하세요.")
     return recs
@@ -110,7 +110,7 @@ def _openai(result: PCAnalysisResult, api_key: str, model: str) -> PCAIReport:
     }
     system = (
         "너는 PC방 매장의 상품 매출을 분석하는 데이터 분석가다. 숫자를 나열하지 말고 "
-        "매출·판매개수·평균 판매단가·순위 변화의 '이유' 가설을 담은 한국어 스토리로 설명하라. "
+        "매출·판매개수·상품별 단가·순위 변화의 '이유' 가설을 담은 한국어 스토리로 설명하라. "
         '반드시 JSON 으로만 답하라: {"summary": str, "product_narratives": {상품명: str}, "recommendations": [str]}'
     )
     try:
