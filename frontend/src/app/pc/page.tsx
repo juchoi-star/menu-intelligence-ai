@@ -65,9 +65,9 @@ export default function PCDashboard() {
                 hint={`전월 ${num(result.dashboard.total_qty_prev)}`}
               />
               <StatCard
-                label="평균 객단가"
+                label="평균 판매단가"
                 value={won(result.dashboard.avg_price_curr)}
-                hint="매출 ÷ 판매개수"
+                hint="매출 ÷ 판매개수 · 객단가 아님"
               />
               <StatCard
                 label="판매 상품수"

@@ -88,13 +88,13 @@ export default function DashboardPage() {
                 />
               ) : (
                 <StatCard
-                  label="객단가"
+                  label="메뉴 건당 평균"
                   value={won(
                     result.dashboard.order_count_curr
                       ? Math.round(result.dashboard.total_sales_curr / result.dashboard.order_count_curr)
                       : 0
                   )}
-                  hint={`할인율 ${result.dashboard.discount_rate_curr}% · 원가 미제공`}
+                  hint={`실매출 ÷ 주문건수 · 손님당 금액(객단가) 아님`}
                 />
               )}
               <StatCard

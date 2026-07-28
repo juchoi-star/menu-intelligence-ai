@@ -590,7 +590,7 @@ def _build_dashboard(
     pt = totals(prev.records)
 
     # 원가 데이터 유무: POS 매출원가(cogs)가 전부 0이면 '이익률'은 실제 마진이 아니라
-    # 부가세 제외 비율(≈90.9%)일 뿐이므로, 프론트가 이익률 대신 객단가를 표시하도록 신호.
+    # 부가세 제외 비율(≈90.9%)일 뿐이므로, 프론트가 이익률 대신 '메뉴 건당 평균'을 표시하도록 신호.
     cost_data_available = any(r.cogs > 0 for r in curr.records) or any(
         r.cogs > 0 for r in prev.records
     )

@@ -51,7 +51,7 @@ export default function BeltoonDashboard() {
                 hint={`${wonShort(result.dashboard.total_sales_curr - result.dashboard.total_sales_prev)} 변동`} />
               <StatCard label="판매개수" value={num(result.dashboard.total_qty_curr)}
                 delta={result.dashboard.qty_delta_pct} hint={`전월 ${num(result.dashboard.total_qty_prev)}`} />
-              <StatCard label="평균 객단가" value={won(result.dashboard.avg_price_curr)} hint="매출 ÷ 판매개수" />
+              <StatCard label="평균 판매단가" value={won(result.dashboard.avg_price_curr)} hint="매출 ÷ 판매개수 · 객단가 아님" />
               <StatCard label="판매 상품수" value={num(result.dashboard.product_count_curr)}
                 hint={`전월 ${num(result.dashboard.product_count_prev)}`} />
             </div>

@@ -64,7 +64,7 @@ export function PCProductTable({ products }: { products: PCProductAnalysis[] }) 
               <th className="th text-right">매출</th>
               <th className="th text-right">성장률</th>
               <th className="th text-right">판매개수</th>
-              <th className="th text-right">객단가</th>
+              <th className="th text-right">평균단가</th>
               <th className="th text-right">점유</th>
               <th className="th text-right">순위</th>
               <th className="th">상태</th>
