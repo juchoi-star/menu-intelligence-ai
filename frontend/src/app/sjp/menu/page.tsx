@@ -77,8 +77,8 @@ export default function MenuAnalysisPage() {
         )}
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <InsightList title="상승 TOP10" items={ins.rising_top10} tone="pos" />
-          <InsightList title="하락 TOP10" items={ins.falling_top10} tone="neg" />
+          <InsightList title={`상승 TOP10${tab === ALL ? " (음식)" : ""}`} items={ins.rising_top10} tone="pos" />
+          <InsightList title={`하락 TOP10${tab === ALL ? " (음식)" : ""}`} items={ins.falling_top10} tone="neg" />
           <InsightList title={`매출 기여도 TOP10${tab === ALL ? "" : " (그룹 내)"}`} items={ins.top_contributors} tone="gold" />
           <InsightList title="주문 증가율 TOP10" items={ins.order_growth_top} tone="accent" />
           <InsightList title={`순위 상승${tab === ALL ? "" : " (그룹 내)"}`} items={ins.rank_up} tone="pos" />

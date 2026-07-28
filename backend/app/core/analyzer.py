@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
-from app.core.groups import GROUP_ORDER, group_for, is_mapped
+from app.core.groups import GROUP_FOOD, GROUP_ORDER, group_for, is_mapped
 from app.core.parser import MenuRecord, ParsedFile
 from app.core.text import display_name, fuzzy_key
 from app.models.schemas import (
@@ -355,7 +355,15 @@ def _to_item(m: MenuAnalysis, value: float | None, detail: str = "") -> MenuInsi
     )
 
 
-def _build_insights(menus: list[MenuAnalysis]) -> Insights:
+def _build_insights(menus: list[MenuAnalysis], growth_group: str | None = None) -> Insights:
+    """인사이트 묶음 생성.
+
+    growth_group: 지정하면 상승/하락 TOP 을 그 그룹으로만 제한한다.
+        메뉴개발팀 관점에서 상승/하락 TOP 은 음식 메뉴 개발에 쓰는 목록이라,
+        전체 인사이트에서는 음식만 담는다(주류·막걸리는 브랜드/프로모션 영향이 커
+        메뉴 개발 판단에 섞이면 방해됨). 그룹별 탭은 각 그룹 것을 그대로 쓰므로
+        기본값(None)으로 호출한다.
+    """
     # 상승/하락: 신규/중단 제외 + 최소 기준매출 이상만
     growth_pool = [
         m
@@ -364,6 +372,7 @@ def _build_insights(menus: list[MenuAnalysis]) -> Insights:
         and not m.is_discontinued
         and m.sales_growth_pct is not None
         and (m.prev.real_sales if m.prev else 0) >= MIN_BASE_SALES
+        and (growth_group is None or m.group == growth_group)
     ]
     rising = sorted(growth_pool, key=lambda m: m.sales_growth_pct or 0, reverse=True)[:TOP_N]
     falling = sorted(growth_pool, key=lambda m: m.sales_growth_pct or 0)[:TOP_N]
@@ -656,7 +665,8 @@ def analyze(
     ranked_menus = [m for m in menus_full if not _is_unknown(m.menu_code)]
     excluded = [m for m in menus_full if _is_unknown(m.menu_code)]
 
-    insights = _build_insights(ranked_menus)
+    # 전체 인사이트의 상승/하락 TOP 은 음식만(메뉴개발 대상). 그룹별 탭은 각 그룹 유지.
+    insights = _build_insights(ranked_menus, growth_group=GROUP_FOOD)
     total_curr_real = sum(a.real_sales for a in curr_menu.values())
     groups, group_slices = _build_group_summaries(menus_full, total_curr_real)
     stores = _build_store_analyses(prev_store, curr_store)

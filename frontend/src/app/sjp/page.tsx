@@ -162,8 +162,8 @@ export default function DashboardPage() {
 
             {/* 상승/하락 미리보기 */}
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-              <InsightList title="상승 TOP10" items={result.insights.rising_top10} tone="pos" />
-              <InsightList title="하락 TOP10" items={result.insights.falling_top10} tone="neg" />
+              <InsightList title="음식 상승 TOP10" items={result.insights.rising_top10} tone="pos" />
+              <InsightList title="음식 하락 TOP10" items={result.insights.falling_top10} tone="neg" />
             </div>
           </>
         )}

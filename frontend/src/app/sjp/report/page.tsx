@@ -90,8 +90,8 @@ export default function ReportPage() {
 
           {/* 2~3. 성장/감소 */}
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <ListCard title="2. 메뉴 성장" items={result.insights.rising_top10} tone="pos" />
-            <ListCard title="3. 메뉴 감소" items={result.insights.falling_top10} tone="neg" />
+            <ListCard title="2. 음식 메뉴 성장" items={result.insights.rising_top10} tone="pos" />
+            <ListCard title="3. 음식 메뉴 감소" items={result.insights.falling_top10} tone="neg" />
           </div>
 
           {/* 4. 순위 변화 */}

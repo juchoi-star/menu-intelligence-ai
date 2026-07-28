@@ -124,3 +124,31 @@ def test_group_summaries_present():
     assert {g.group for g in res.dashboard.sales_by_group} == {GROUP_LIQUOR, GROUP_FOOD, GROUP_ETC}
     # 가맹점 그룹별 매출 분해
     assert res.stores[0].group_sales_curr[GROUP_LIQUOR] == 500
+
+
+def test_overall_rising_falling_is_food_only():
+    """전체 인사이트의 상승/하락 TOP 은 음식만 담는다(메뉴개발 대상).
+
+    주류·막걸리·음료는 브랜드/프로모션 영향이 커 메뉴 개발 판단에 섞이면 방해된다.
+    단, 그룹별 탭(groups[].insights)은 각 그룹 것을 그대로 유지해야 한다.
+    """
+    prev = _make([
+        _rec("S1", "주류", "L1", "소주", 1_000_000),
+        _rec("S1", "전", "F1", "김치전", 1_000_000),
+        _rec("S1", "음료", "E1", "콜라", 1_000_000),
+    ])
+    curr = _make([
+        _rec("S1", "주류", "L1", "소주", 3_000_000),      # 주류가 가장 크게 성장
+        _rec("S1", "전", "F1", "김치전", 1_200_000),
+        _rec("S1", "음료", "E1", "콜라", 2_000_000),
+    ])
+    res = analyze(prev, curr)
+
+    names = [i.menu_name for i in res.insights.rising_top10]
+    assert names == ["김치전"]          # 음식만 — 소주/콜라는 제외
+    assert all(group_for(i.category) == GROUP_FOOD for i in res.insights.rising_top10)
+    assert all(group_for(i.category) == GROUP_FOOD for i in res.insights.falling_top10)
+
+    # 그룹별 탭은 각 그룹의 상승/하락을 그대로 제공
+    by_group = {g.group: g for g in res.groups}
+    assert [i.menu_name for i in by_group[GROUP_LIQUOR].insights.rising_top10] == ["소주"]
